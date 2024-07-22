@@ -26,10 +26,10 @@ nnn = 512
 policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # 双曲正切激活函数
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1)) # 计算每个动作的概率
-# model.load_state_dict(
-#     torch.load('C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_critic_3.pth'))
-# policy.load_state_dict(
-#     torch.load('C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_3.pth'))
+model.load_state_dict(
+    torch.load('C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_critic_3.pth'))
+policy.load_state_dict(
+    torch.load('C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_3.pth'))
 model.to(device)
 policy.to(device)
 model.train()
