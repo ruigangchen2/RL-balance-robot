@@ -60,7 +60,7 @@ policy1 = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                               torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
 policy1.to('cpu')
 policy1.load_state_dict(
-    torch.load('D:/L&S/Mas/Project/Walking-RL/result/Ruigang/Policy_Net_Pytorch(-1,0,1)_959.pth'))
+    torch.load('../outputs/Policy_Net_Pytorch(-1,0,1)_965.pth'))
 policy1.to('cpu')
 N1 = 20
 N2 = 30
@@ -112,7 +112,7 @@ for i_ in tqdm(range(N1)):
                     working_save[i_, j, k] = a_save
                     break
 
-with h5py.File('D:/L&S/Mas/Project/Walking-RL/result/Ruigang/working_save(-1,0,1)-20,30,100', 'w') as h5f:
+with h5py.File('working_save(-1,0,1)-20,30,100', 'w') as h5f:
     h5f.create_dataset('working_save', data=working_save)
 
 plt.figure(figsize=(8, 10), dpi=200)
@@ -136,7 +136,7 @@ for ii in range(len(thtab)):
     # if ii_ == (N - 1):
     #     plt.title(', '.join(map(str, [ii_, jj_])))
 plt.tight_layout()
-plt.savefig("C:/Users/Admin/Desktop/Figure1.svg")
+plt.savefig("Figure1.svg")
 plt.pause(1e0)
 plt.show()
 
