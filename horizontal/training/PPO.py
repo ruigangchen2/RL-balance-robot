@@ -14,7 +14,7 @@ else:
     print("Running on the CPU")
 torch.cuda.set_device(device)
 nnn = 512
-# Neural Networks initialize
+# 实例化价值网络
 model = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.ReLU(),  # relu提取非线性特征
                             torch.nn.Linear(nnn * 2, nnn), torch.nn.ReLU(),
                             torch.nn.Linear(nnn, 1))
@@ -22,6 +22,7 @@ for module in model.modules():
     if isinstance(module, torch.nn.Linear):
         torch.nn.init.orthogonal_(module.weight) # 正交初始化
 nnn = 512
+# 实例化策略网络
 policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # 双曲正切激活函数
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1)) # 计算每个动作的概率
@@ -32,8 +33,8 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
 model.to(device)
 policy.to(device)
 model.train()
-optimizer_value = torch.optim.Adam(model.parameters(), lr=1e-4)
-optimizer_policy = torch.optim.Adam(policy.parameters(), lr=1e-4)
+optimizer_value = torch.optim.Adam(model.parameters(), lr=1e-4) # 价值网络优化器
+optimizer_policy = torch.optim.Adam(policy.parameters(), lr=1e-4) # 策略网络优化器
 loss_fn = torch.nn.MSELoss()
 
 # 系统参数
@@ -242,9 +243,9 @@ for epoch in range(episode):
         loss1 = new_prob / old_prob * delta
         loss2 = (new_prob / old_prob).clamp(-0.8, 1.2) * delta
         loss = -torch.min(loss1, loss2).mean() + entropy.mean() * policy_entropy_coefficient
-        loss.backward()
-        optimizer_policy.step()
-        optimizer_policy.zero_grad()
+        loss.backward() # 反向传播
+        optimizer_policy.step() # 梯度更新
+        optimizer_policy.zero_grad() # 梯度清零
     torch.save(policy.state_dict(), f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1).pth')
     torch.save(model.state_dict(),
                f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_critic.pth')
