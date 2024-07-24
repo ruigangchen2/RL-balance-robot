@@ -44,7 +44,7 @@ class ValueNet(nn.Module):
 # 构建模型
 # ----------------------------------- #
 
-class PPO:
+class PPO_clip:
     def __init__(self, n_states, n_hiddens, n_actions,
                  actor_lr, critic_lr, lmbda, epochs, eps, gamma, device):
         # 实例化策略网络

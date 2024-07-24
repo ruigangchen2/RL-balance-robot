@@ -1,6 +1,4 @@
-import os
 import torch
-import random
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -14,14 +12,6 @@ def calc_new_state(y_, action_, c_w_, c_b_, i_b_, m_w_, l_w_, i_w_):
     ddthtws_ = ((i_b_ + i_w_ + m_w_ * l_w_ ** 2) * (action_ - c_w_ * y_[2]) / (i_w_ * (i_b_ + m_w_ * l_w_ ** 2))) + c_b_ * y_[1] / (i_b_ + m_w_ * l_w_ ** 2)
     return ddthtbs_, ddthtws_
 
-# l_w = 0.083
-# l_b = 0.062
-# m_b = 0.178
-# m_w = 0.0434
-# I_b = 0.9e-3
-# I_w = 0.731e-4
-# C_b = 0.27e-3
-# C_w = 0.126e-4
 l_w = 27.0e-2
 l_b = 18.5e-2
 m_b = 193.7e-3
@@ -37,9 +27,8 @@ dt = 0.05
 torque = 0.06
 actions = [-torque, 0, torque]
 # target location
-settle = np.deg2rad(2.5)
-settle2 = 10
-# speed_range = 0.5
+settle = np.deg2rad(5)
+
 
 # Terminate conditions
 speed_rangeb = 2
@@ -48,7 +37,7 @@ theta_nondim = 90 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
-simu_time = 5
+simu_time = 2
 success = []
 steps = int(simu_time / dt)
 
@@ -59,12 +48,11 @@ policy1 = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                               torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                               torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
 policy1.to('cpu')
-policy1.load_state_dict(
-    torch.load('../outputs/Policy_Net_Pytorch(-1,0,1)_965.pth'))
+policy1.load_state_dict(torch.load('../training/outputs/Policy_Net_Pytorch(-1,0,1).pth'))
 policy1.to('cpu')
-N1 = 20
-N2 = 30
-N3 = 100
+N1 = 20   # tehta_b
+N2 = 30   # dtehta_b
+N3 = 100  # dtehta_w
 N = N1
 thtab = np.deg2rad(np.linspace(-90, 90, N1))
 dthtb = np.linspace(-speed_rangeb, speed_rangeb, N2)
@@ -72,9 +60,7 @@ dthtw = np.linspace(-speed_rangew, speed_rangew, N3)
 working_save = np.zeros((N1, N2, N3))
 cot = 0
 flag = 0
-# i_ = 5
-# j = 5
-# k = 5
+
 for i_ in tqdm(range(N1)):
     print(flag)
     for j in range(N2):
@@ -98,12 +84,12 @@ for i_ in tqdm(range(N1)):
                 y[0] += y[1] * dt
                 y[2] += ddthtws * dt
                 if con == 0:
-                    if a > 0:
+                    if np.argmax(prob) == 2:
                         a_save = 1
-                    if a < 0:
+                    if np.argmax(prob) == 0:
                         a_save = -1
-                    else:
-                        a_save = a
+                    elif np.argmax(prob) == 1:
+                        a_save = 0
                     con += 1
                 if abs(y[0]) > theta_nondim * 1.3:
                     break
@@ -112,16 +98,10 @@ for i_ in tqdm(range(N1)):
                     working_save[i_, j, k] = a_save
                     break
 
-with h5py.File('working_save(-1,0,1)-20,30,100', 'w') as h5f:
+with h5py.File('table', 'w') as h5f:
     h5f.create_dataset('working_save', data=working_save)
 
 plt.figure(figsize=(8, 10), dpi=200)
-# plt.xlabel(r'$dthtw$', fontsize=20)
-# plt.ylabel(r'$dthtb$', fontsize=20)
-# plt.xticks([])
-# plt.yticks([])
-# plt.imshow(working_save[0, :, :], cmap='jet', origin='lower', vmin=-2, vmax=1,
-#            extent=(float(dthtb[0]), float(dthtb[-1]), float(dthtw[0]), float(dthtw[-1])))
 plt.tight_layout()
 for ii in range(len(thtab)):
     plt.subplot(4, 5, ii+1)
@@ -133,10 +113,8 @@ for ii in range(len(thtab)):
     plt.yticks([])
     plt.axis('off')
     plt.tight_layout()
-    # if ii_ == (N - 1):
-    #     plt.title(', '.join(map(str, [ii_, jj_])))
 plt.tight_layout()
-plt.savefig("Figure1.svg")
+plt.savefig("figure.svg")
 plt.pause(1e0)
 plt.show()
 

@@ -27,9 +27,9 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1)) # 计算每个动作的概率
 model.load_state_dict(
-    torch.load('C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_critic_3.pth'))
+    torch.load('./outputs/Policy_Net_Pytorch(-1,0,1)_critic_2.pth'))
 policy.load_state_dict(
-    torch.load('C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_3.pth'))
+    torch.load('./outputs/Policy_Net_Pytorch(-1,0,1)_2.pth'))
 model.to(device)
 policy.to(device)
 model.train()
@@ -39,25 +39,22 @@ loss_fn = torch.nn.MSELoss()
 
 # 系统参数
 l_w = 27.0e-2
-l_b = 18.5e-2
-m_b = 193.7e-3
-m_w = 81.6e-3
+m_w = 72.0e-3 #修正过的
 I_b = 6.14e-3
 I_w = 47.21e-5
 C_b = 1e-5
 C_w = 7.225e-5
 g = 0
-gamma = 1 # 折扣因子
+
+gamma = 1  # 折扣因子
 gamma1 = 1
 dt = 0.05
 torque = 0.06
-actions = [-torque, 0, torque]
-settle = np.deg2rad(5)
-settle2 = 10
-# speed_range = 0.5
+actions = [-torque, 0, torque] # action 只有三个
+settle = np.deg2rad(5)  # 5°的误差
 
 # episode and training parameters
-episode = 50000 # 总迭代数
+episode = 120  # 总迭代数
 critic_training_times = 20
 critic_training_steps = 50
 actor_training_times = 10
@@ -65,7 +62,6 @@ playing_times = 1000
 concentrated_sample_times = 15
 batch_size = 5000
 reward_scale = 5
-action_value_weight = 0.04
 policy_entropy_coefficient = 0.001
 
 # Terminate conditions
@@ -93,26 +89,24 @@ class PendulumEnv:
         self.state[0] += self.state[1] * dt
         self.state[2] += ddthtws * dt
         self.steps += 1
-        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle:  # and abs(
-            # self.state[2] - dthtw_target) < settle2:
-            self.reward = reward_scale
+        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle:
+            self.reward = reward_scale  # 如果达到了目标，那么奖励5
             success.append(1)
             self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 55:  # 180
-            self.reward = -reward_scale * 2
+        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 50:  # 限制运行步数
+            self.reward = -reward_scale * 5  # 施加惩罚
             self.over = True
         else:
             self.reward = 0
             self.over = False
-        self.reward -= (abs(self.steps / 660) * 5 + abs(action)*100) * 0.1
-        # self.reward += -abs(action) * action_value_weight
+        # self.reward -= (abs(self.steps / 660) * 5 + abs(action)*100) * 0.1   # 在时间维度和动作都进行惩罚动作
+        self.reward -= (abs(self.steps ) * 0.007 + abs(action) * 0.1)
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
         return self.next_state, self.reward, self.over
 
     def reset(self):
         thtb = np.deg2rad(np.random.uniform(-90, 90))
-        # thtw = np.deg2rad(np.random.uniform(-6, 6))
         dthtb = np.random.uniform(-speed_rangeb, speed_rangeb)
         dthtw = np.random.uniform(-speed_rangew, speed_rangew)
         self.state = np.array([thtb, dthtb, dthtw])
@@ -126,15 +120,14 @@ class PendulumEnv:
 
 env = PendulumEnv()
 
-
+# 开始训练
 def play():
     global experience_buffer_for_policy, experience_buffer_for_value, theta_nondim, speed_rangeb, speed_rangew
     state_ = env.reset()
     over_ = False
     experience_buffer_ = []
     while not over_:
-        state_in_net_ = np.array(
-            [(state_[0] - np.pi / 2) / theta_nondim, state_[1] / speed_rangeb, state_[2] / speed_rangew])
+        state_in_net_ = np.array([(state_[0] - np.pi / 2) / theta_nondim, state_[1] / speed_rangeb, state_[2] / speed_rangew])
         prob_ = policy(torch.FloatTensor(state_in_net_).reshape(1, 3).to(device))[0].cpu().detach().numpy()
         action_index_ = np.random.choice(3, p=prob_)
         next_state_, reward_, over_ = env.step(action_index_)
@@ -174,7 +167,7 @@ def play():
                                                     experience_buffer_[-1][5],
                                                     experience_buffer_[-1][6]])
 
-
+# ppo公式化
 ini_b = 0
 for epoch in range(episode):
     success = []
@@ -188,15 +181,15 @@ for epoch in range(episode):
         ini_a = len(success)
         if ini_a >= ini_b:
             if os.path.exists(
-                    f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_{ini_b}.pth'):
-                os.remove(f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_{ini_b}.pth')
+                    f'./outputs/Policy_Net_Pytorch(-1,0,1)_{ini_b}.pth'):
+                os.remove(f'./outputs/Policy_Net_Pytorch(-1,0,1)_{ini_b}.pth')
             if os.path.exists(
-                    f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_b}.pth'):
-                os.remove(f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_b}.pth')
+                    f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_b}.pth'):
+                os.remove(f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_b}.pth')
             torch.save(policy.state_dict(),
-                       f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_{ini_a}.pth')
+                       f'./outputs/Policy_Net_Pytorch(-1,0,1)_{ini_a}.pth')
             torch.save(model.state_dict(),
-                       f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_a}.pth')
+                       f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_a}.pth')
             ini_b = ini_a
 
     for ii in range(critic_training_times):
@@ -243,9 +236,8 @@ for epoch in range(episode):
         loss1 = new_prob / old_prob * delta
         loss2 = (new_prob / old_prob).clamp(-0.8, 1.2) * delta
         loss = -torch.min(loss1, loss2).mean() + entropy.mean() * policy_entropy_coefficient
-        loss.backward() # 反向传播
-        optimizer_policy.step() # 梯度更新
-        optimizer_policy.zero_grad() # 梯度清零
-    torch.save(policy.state_dict(), f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1).pth')
-    torch.save(model.state_dict(),
-               f'C:/Users/Administrator/Desktop/Cases/RL-outputs/Policy_Net_Pytorch(-1,0,1)_critic.pth')
+        loss.backward()  # 反向传播
+        optimizer_policy.step()  # 梯度更新
+        optimizer_policy.zero_grad()  # 梯度清零
+    torch.save(policy.state_dict(), f'./outputs/Policy_Net_Pytorch(-1,0,1).pth')
+    torch.save(model.state_dict(),f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic.pth')

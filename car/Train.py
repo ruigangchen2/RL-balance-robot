@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import gym
 import torch
-from RL_brain import PPO
+from PPO import PPO_clip
 
 device = torch.device('cuda') if torch.cuda.is_available() \
     else torch.device('cpu')
@@ -31,7 +31,7 @@ n_actions = env.action_space.n  # 动作数 2
 # 模型构建
 # ----------------------------------------- #
 
-agent = PPO(n_states=n_states,  # 状态数
+agent = PPO_clip(n_states=n_states,  # 状态数
             n_hiddens=n_hiddens,  # 隐含层数
             n_actions=n_actions,  # 动作数
             actor_lr=actor_lr,  # 策略网络学习率
