@@ -38,13 +38,12 @@ optimizer_policy = torch.optim.Adam(policy.parameters(), lr=1e-4) # 策略网络
 loss_fn = torch.nn.MSELoss()
 
 # 系统参数
-l_w = 27.0e-2
-m_w = 72.0e-3 #修正过的
+l_w = 27.0e-2 # ✅
+m_w = 72.0e-3 # ✅
 I_b = 6.14e-3
-I_w = 47.21e-5
+I_w = 1.08e-4 # ✅
 C_b = 1e-5
-C_w = 7.225e-5
-g = 0
+C_w = 1.128e-5 # ✅
 
 gamma = 1  # 折扣因子
 gamma1 = 1
