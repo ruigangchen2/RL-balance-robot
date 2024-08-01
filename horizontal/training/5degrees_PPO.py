@@ -20,48 +20,49 @@ model = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.ReLU(),  # rel
                             torch.nn.Linear(nnn, 1))
 for module in model.modules():
     if isinstance(module, torch.nn.Linear):
-        torch.nn.init.orthogonal_(module.weight) # 正交初始化
+        torch.nn.init.orthogonal_(module.weight)  # 正交初始化
 nnn = 512
 # 实例化策略网络
 policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # 双曲正切激活函数
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
-                             torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1)) # 计算每个动作的概率
+                             torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
 model.load_state_dict(
     torch.load('./outputs/Policy_Net_Pytorch(-1,0,1)_critic_2.pth'))
 policy.load_state_dict(
     torch.load('./outputs/Policy_Net_Pytorch(-1,0,1)_2.pth'))
+
 model.to(device)
 policy.to(device)
 model.train()
-optimizer_value = torch.optim.Adam(model.parameters(), lr=1e-4) # 价值网络优化器
-optimizer_policy = torch.optim.Adam(policy.parameters(), lr=1e-4) # 策略网络优化器
+optimizer_value = torch.optim.Adam(model.parameters(), lr=1e-4)  # 价值网络优化器
+optimizer_policy = torch.optim.Adam(policy.parameters(), lr=1e-4)  # 策略网络优化器
 loss_fn = torch.nn.MSELoss()
 
 # 系统参数
-l_w = 27.0e-2 # ✅
-m_w = 72.0e-3 # ✅
-I_b = 6.14e-3
-I_w = 1.08e-4 # ✅
-C_b = 1e-5
-C_w = 1.128e-5 # ✅
+l_w = 27.0e-2
+m_w = 72.0e-3
+I_b = 8.849e-3
+I_w = 1.08e-4
+C_b = 2.388e-3
+C_w = 1.128e-5
 
 gamma = 1  # 折扣因子
 gamma1 = 1
-dt = 0.05
-torque = 0.06
-actions = [-torque, 0, torque] # action 只有三个
+dt = 0.05  # 执行间隔
+torque = 0.07  # 力矩
+actions = [-torque, 0, torque]  # action 只有三个
 settle = np.deg2rad(5)  # 5°的误差
 
 # episode and training parameters
-episode = 120  # 总迭代数
-critic_training_times = 20
-critic_training_steps = 50
-actor_training_times = 10
-playing_times = 1000
-concentrated_sample_times = 15
-batch_size = 5000
-reward_scale = 5
-policy_entropy_coefficient = 0.001
+episode = 100  # 总迭代数
+critic_training_times = 20  # 每个集合内critic用多少次经验训练
+critic_training_steps = 50  # critic每次训练多少步
+actor_training_times = 10  # 每个集合内actor用多少次经验训练
+playing_times = 1000  # 每个集合内收集多少轮数据
+concentrated_sample_times = 15  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
+batch_size = 5000  # 训练的时候，你是从学习经验池里面收集多少步用来训练
+reward_scale = 5  # 奖励尺度
+policy_entropy_coefficient = 0.005 #0.001  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
 
 # Terminate conditions
 speed_rangeb = 2
@@ -98,14 +99,14 @@ class PendulumEnv:
         else:
             self.reward = 0
             self.over = False
-        # self.reward -= (abs(self.steps / 660) * 5 + abs(action)*100) * 0.1   # 在时间维度和动作都进行惩罚动作
-        self.reward -= (abs(self.steps ) * 0.007 + abs(action) * 0.1)
+        # self.reward -= (abs(self.steps) * 0.01 + abs(action) * 0.5)
+        self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
         return self.next_state, self.reward, self.over
 
     def reset(self):
-        thtb = np.deg2rad(np.random.uniform(-90, 90))
+        thtb = np.deg2rad(np.random.uniform(0, 90))  # 限制初始范围
         dthtb = np.random.uniform(-speed_rangeb, speed_rangeb)
         dthtw = np.random.uniform(-speed_rangew, speed_rangew)
         self.state = np.array([thtb, dthtb, dthtw])

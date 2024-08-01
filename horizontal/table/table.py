@@ -12,19 +12,18 @@ def calc_new_state(y_, action_, c_w_, c_b_, i_b_, m_w_, l_w_, i_w_):
     ddthtws_ = ((i_b_ + i_w_ + m_w_ * l_w_ ** 2) * (action_ - c_w_ * y_[2]) / (i_w_ * (i_b_ + m_w_ * l_w_ ** 2))) + c_b_ * y_[1] / (i_b_ + m_w_ * l_w_ ** 2)
     return ddthtbs_, ddthtws_
 
+
 l_w = 27.0e-2
-l_b = 18.5e-2
-m_b = 193.7e-3
-m_w = 81.6e-3
-I_b = 6.14e-3
-I_w = 47.21e-5
-C_b = 1e-5
-C_w = 7.225e-5
-g = 0
+m_w = 72.0e-3
+I_b = 8.849e-3
+I_w = 1.08e-4
+C_b = 2.388e-3
+C_w = 1.128e-5
+
 gamma = 1
 gamma1 = 1
-dt = 0.05
-torque = 0.06
+dt = 0.05  # 每一步的时间间隔
+torque = 0.07
 actions = [-torque, 0, torque]
 # target location
 settle = np.deg2rad(5)
@@ -37,7 +36,7 @@ theta_nondim = 90 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
-simu_time = 2
+simu_time = 2.5  #总的仿真时间长度，除以dt是进行了多少步
 success = []
 steps = int(simu_time / dt)
 
@@ -47,26 +46,25 @@ nnn = 512
 policy1 = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                               torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                               torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
+policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_3.pth'))
 policy1.to('cpu')
-policy1.load_state_dict(torch.load('../training/outputs/Policy_Net_Pytorch(-1,0,1).pth'))
-policy1.to('cpu')
+
 N1 = 20   # tehta_b
-N2 = 30   # dtehta_b
+N2 = 50   # dtehta_b
 N3 = 100  # dtehta_w
+
+
 N = N1
 thtab = np.deg2rad(np.linspace(-90, 90, N1))
 dthtb = np.linspace(-speed_rangeb, speed_rangeb, N2)
 dthtw = np.linspace(-speed_rangew, speed_rangew, N3)
 working_save = np.zeros((N1, N2, N3))
-cot = 0
-flag = 0
+flag = 0  # 成功的次数
 
 for i_ in tqdm(range(N1)):
     print(flag)
     for j in range(N2):
         for k in range(N3):
-            if working_save[i_, j, k] == -2:
-                cot += 1
             working_save[i_, j, k] = -2
             y = np.array([thtab[i_], dthtb[j], dthtw[k]])
             con = 0
