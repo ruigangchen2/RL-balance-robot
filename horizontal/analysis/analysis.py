@@ -10,7 +10,7 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
 policy.load_state_dict(
-    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/Policy_Net_Pytorch(-1,0,1)_986.pth'))
+    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_3.pth'))
 policy.to('cpu')
 
 l_w = 27.0e-2
@@ -27,19 +27,18 @@ dt = 0.05
 torque = 0.07
 actions = [-torque, 0, torque]
 # target location
-settle = np.deg2rad(2)
-# speed_range = 0.5
+settle = np.deg2rad(5)
 
 # episode and training parameters
 episode = 100
 critic_training_times = 20
 critic_training_steps = 50
 actor_training_times = 20
-playing_times = 1200
-concentrated_sample_times = 30
+playing_times = 1000
+concentrated_sample_times = 15
 batch_size = 5000
 reward_scale = 5
-policy_entropy_coefficient = 0.01
+policy_entropy_coefficient = 0.005
 
 
 # Terminate conditions
@@ -100,7 +99,7 @@ class PendulumEnv:
             self.reward = 0
             self.over = False
         # self.reward -= (abs(self.steps / 660))*0.1  # + abs(self.state[2] / 160)) * 0.1
-        self.reward -= (abs(self.steps) * 0.01)
+        self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
         return self.next_state, self.reward, self.over
@@ -127,7 +126,7 @@ count = 0
 frames = []
 success = []
 y = np.zeros(4)
-y[0] = -60 * np.pi / 180
+y[0] = -90 * np.pi / 180
 y[1] = 0
 y[2] = 0
 # y[0] = np.deg2rad(np.random.uniform(-90, 90))
