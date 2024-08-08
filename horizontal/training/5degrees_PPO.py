@@ -27,9 +27,9 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
 model.load_state_dict(
-    torch.load('./outputs/Policy_Net_Pytorch(-1,0,1)_critic_2.pth'))
+    torch.load('./outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_critic_2.pth'))
 policy.load_state_dict(
-    torch.load('./outputs/Policy_Net_Pytorch(-1,0,1)_2.pth'))
+    torch.load('./outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_2.pth'))
 
 model.to(device)
 policy.to(device)
@@ -62,7 +62,7 @@ playing_times = 1000  # 每个集合内收集多少轮数据
 concentrated_sample_times = 15  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
 batch_size = 5000  # 训练的时候，你是从学习经验池里面收集多少步用来训练
 reward_scale = 5  # 奖励尺度
-policy_entropy_coefficient = 0.005 #0.001  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
+policy_entropy_coefficient = 0.005  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
 
 # Terminate conditions
 speed_rangeb = 2
@@ -106,7 +106,7 @@ class PendulumEnv:
         return self.next_state, self.reward, self.over
 
     def reset(self):
-        thtb = np.deg2rad(np.random.uniform(0, 90))  # 限制初始范围
+        thtb = np.deg2rad(np.random.uniform(-90, 90))  # 限制初始范围
         dthtb = np.random.uniform(-speed_rangeb, speed_rangeb)
         dthtw = np.random.uniform(-speed_rangew, speed_rangew)
         self.state = np.array([thtb, dthtb, dthtw])
@@ -120,7 +120,7 @@ class PendulumEnv:
 
 env = PendulumEnv()
 
-# 开始训练
+
 def play():
     global experience_buffer_for_policy, experience_buffer_for_value, theta_nondim, speed_rangeb, speed_rangew
     state_ = env.reset()
@@ -167,7 +167,7 @@ def play():
                                                     experience_buffer_[-1][5],
                                                     experience_buffer_[-1][6]])
 
-# ppo公式化
+
 ini_b = 0
 for epoch in range(episode):
     success = []
@@ -177,6 +177,7 @@ for epoch in range(episode):
         play()
     print(f"the {epoch + 1} episode")
     print(f"success {len(success)} times for {playing_times} agents ")
+    print(len(experience_buffer_for_value))
     if epoch > 1:
         ini_a = len(success)
         if ini_a >= ini_b:
@@ -240,4 +241,4 @@ for epoch in range(episode):
         optimizer_policy.step()  # 梯度更新
         optimizer_policy.zero_grad()  # 梯度清零
     torch.save(policy.state_dict(), f'./outputs/Policy_Net_Pytorch(-1,0,1).pth')
-    torch.save(model.state_dict(),f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic.pth')
+    torch.save(model.state_dict(), f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic.pth')

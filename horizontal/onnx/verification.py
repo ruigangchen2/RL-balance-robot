@@ -1,10 +1,14 @@
-import onnxruntime as rt
-import numpy as  np
-data = np.array([[-90,0,-1800]])
-sess = rt.InferenceSession('PPO.onnx')
-input_name = sess.get_inputs()[0].name
-label_name = sess.get_outputs()[0].name
+import onnx
+import onnxruntime
 
-pred_onx = sess.run([label_name], {input_name:data.astype(np.float32)})[0]
-print(pred_onx)
-print(np.argmax(pred_onx))
+# Load the ONNX model
+model = onnx.load("PPO.onnx")
+# Check that the IR is well formed
+onnx.checker.check_model(model)
+# Print a human readable representation of the graph
+print(onnx.helper.printable_graph(model.graph))
+
+
+session = onnxruntime.InferenceSession('PPO.onnx', None)
+raw_result = session.run([], {"onnx::Gemm_0": [[90, 200, 110]]})
+print(raw_result)

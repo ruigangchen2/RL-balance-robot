@@ -1,7 +1,4 @@
 import torch
-import onnx
-import torchvision
-
 
 if torch.cuda.is_available():
     device = torch.device("cuda:0")
@@ -18,7 +15,7 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
 policy.to(device)
 policy.load_state_dict(
-    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_3.pth'))
+    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/90-(-90)_Policy_Net_Pytorch(-1,0,1).pth'))
 policy.eval()
 dummy_input = torch.randn(1, 3, device='cuda').reshape(1, 3)
 torch.onnx.export(policy, dummy_input, "PPO.onnx", opset_version=11, verbose=True)

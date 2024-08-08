@@ -36,7 +36,7 @@ theta_nondim = 90 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
-simu_time = 2.5  #总的仿真时间长度，除以dt是进行了多少步
+simu_time = 2.5  # 总的仿真时间长度，除以dt是进行了多少步
 success = []
 steps = int(simu_time / dt)
 
@@ -46,7 +46,7 @@ nnn = 512
 policy1 = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                               torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                               torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
-policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_3.pth'))
+policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/Policy_Net_Pytorch(-1,0,1).pth'))
 policy1.to('cpu')
 
 N1 = 20   # tehta_b
@@ -115,4 +115,3 @@ plt.tight_layout()
 plt.savefig("figure.svg")
 plt.pause(1e0)
 plt.show()
-

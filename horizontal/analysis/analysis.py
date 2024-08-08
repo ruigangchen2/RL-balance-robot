@@ -3,7 +3,7 @@ import imageio
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-import h5py
+
 
 nnn = 512
 policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
@@ -49,28 +49,6 @@ thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
 
-'''
-find the fail area
-'''
-# with h5py.File('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/table/table', 'r') as h5f:
-# data1 = h5f['working_save'][:]
-# working_save = data1
-#
-# N1 = 20   # tehta_b
-# N2 = 30   # dtehta_b
-# N3 = 100  # dtehta_w
-#
-# N = N1
-# thtab = np.deg2rad(np.linspace(-90, 90, N1))
-# dthtb = np.linspace(-speed_rangeb, speed_rangeb, N2)
-# dthtw = np.linspace(-speed_rangew, speed_rangew, N3)
-#
-# for i_ in (range(N1)):
-#     for j in range(N2):
-#         for k in range(N3):
-#             if working_save[i_,j,k] == -2:
-#                 print(i_,j,k)
-#                 print("\n")
 
 class PendulumEnv:
     def __init__(self):
@@ -218,5 +196,3 @@ plt.step(np.array(range(count_time)) * dt, actions_1, 'k-', label='Torque')
 plt.show()
 plt.tight_layout()
 plt.savefig("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/analysis/figure.svg")
-
-
