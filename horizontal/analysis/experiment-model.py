@@ -3,6 +3,7 @@ import imageio
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+import pandas as pd
 
 
 nnn = 512
@@ -21,8 +22,6 @@ C_b = 2.388e-3
 C_w = 1.128e-5
 
 
-gamma = 1
-gamma1 = 1
 dt = 0.05
 torque = 0.07
 actions = [-torque, 0, torque]
@@ -75,7 +74,6 @@ class PendulumEnv:
         else:
             self.reward = 0
             self.over = False
-        # self.reward -= (abs(self.steps / 660))*0.1  # + abs(self.state[2] / 160)) * 0.1
         self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
@@ -106,9 +104,6 @@ y = np.zeros(4)
 y[0] = 50 * np.pi / 180
 y[1] = 0
 y[2] = 0
-# y[0] = np.deg2rad(np.random.uniform(-90, 90))
-# y[1] = np.random.uniform(-speed_rangeb, speed_rangeb)
-# y[2] = np.random.uniform(-speed_rangew, speed_rangew)
 over = False
 state = env.reset()
 state[0] = y[0]
@@ -158,6 +153,22 @@ dthetas1.append(state[1] * 180 / np.pi)
 dthetas2.append(state[2] * 180 / np.pi)
 
 
+K_m = 33.5e-3
+Current_max = 2.3
+
+start = 185
+end = -10
+
+data = pd.read_csv("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/analysis/experiment data/20240813.csv", low_memory=False)
+time = np.array(data['time'].ravel())[start:end].astype('float')
+theta_b = np.array(data['theta_b'].ravel())[start:end].astype('float')
+dtheta_b = np.array(data['dtheta_b'].ravel())[start:end].astype('float')
+dtheta_w = np.array(data['dtheta_w'].ravel())[start:end].astype('float')
+action = np.array(data['action'].ravel())[start:end].astype('float')
+action = action - 1
+time = (time - time[0])/1000
+
+
 plt.figure(figsize=(4, 4), dpi=200)
 plt.xticks([])
 plt.yticks([])
@@ -167,9 +178,11 @@ horizontal_line_5_ = [-5] * (count_time + 1)  # * np.pi / 180
 start_point = 0
 plt.subplot(3, 1, 1)
 plt.ylabel(r'$\theta$ [$^\circ$]')
-plt.xlim([0, count_time * dt])
-plt.plot(np.array(range(count_time+1)) * dt, thetas1, 'b-+', label=r'$\theta_w$')
-plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_time + 1),
+plt.xlim([0, (count_time - 2) * dt])
+plt.plot(time, theta_b, 'r-*', label='Exp.')
+plt.plot(time, [0] * len(time), 'k--')
+plt.plot(np.array(range(count_time-2)) * dt, thetas1[:-3], 'b-*', label='Simu.')
+plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_time - 2),
                               horizontal_line_5[start_point] - horizontal_line_5_[start_point],
                               edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
 plt.legend(ncol=2)
@@ -177,9 +190,10 @@ plt.xticks([])
 plt.tight_layout()
 plt.subplot(3, 1, 2)
 plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
-plt.xlim([0, count_time * dt])
-plt.plot(np.array(range(count_time+1)) * dt, dthetas1, 'b-', label=r'$\dot{\theta}_b$')
-# plt.plot(np.array(range(count_time+1)) * dt, dthetas2, 'r-', label=r'$\dot{\theta}_w$')
+plt.xlim([0, (count_time - 2) * dt])
+plt.plot(time, dtheta_b, 'r-*', label='Exp.')
+plt.plot(time, [0] * len(time), 'k--')
+plt.plot(np.array(range(count_time+1)) * dt, dthetas1, 'b-*', label='Simu.')
 plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_time + 1),
                               horizontal_line_5[start_point] - horizontal_line_5_[start_point],
                               edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
@@ -189,9 +203,13 @@ plt.tight_layout()
 plt.subplot(3, 1, 3)
 plt.xlabel('Time [s]')
 plt.ylabel(r'$\tau$  [Nm]')
-plt.ylim([-(torque + 0.01), torque + 0.01])
-plt.xlim([0, count_time * dt])
-plt.step(np.array(range(count_time)) * dt, actions_1, 'k-', label='Torque')
+plt.ylim([-1.2, 1.2])
+plt.xlim([0, (count_time - 2) * dt])
+plt.plot(time, action, 'r-*', label='Exp.')
+plt.plot(time, [0] * len(time), 'k--')
+plt.step(np.array(range(count_time)) * dt, np.array(actions_1)/0.07, 'b-*', label='Simu.')
+plt.yticks([-1, 0, 1], ["-0.07", "0", "0.07"])
+plt.legend(ncol=2)
 plt.show()
 plt.tight_layout()
 plt.savefig("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/analysis/figure.svg")

@@ -25,18 +25,22 @@ nnn = 512
 # 实例化策略网络
 policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # 双曲正切激活函数
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
-                             torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
+                             torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1)) #Softmax会将输出值归位于 [0,1] 范围内，但总和为 1。
+# 加载预训练模型权重
 model.load_state_dict(
-    torch.load('./outputs/Policy_Net_Pytorch(-1,0,1)_critic_2.pth'))
+    torch.load('./outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_critic_2.pth'))
 policy.load_state_dict(
-    torch.load('./outputs/Policy_Net_Pytorch(-1,0,1)_2.pth'))
+    torch.load('./outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_2.pth'))
 
 model.to(device)
 policy.to(device)
-model.train()
+model.train()  # 使用后，将会启用 batch normalization 和 dropout
 optimizer_value = torch.optim.Adam(model.parameters(), lr=1e-4)  # 价值网络优化器
 optimizer_policy = torch.optim.Adam(policy.parameters(), lr=1e-4)  # 策略网络优化器
-loss_fn = torch.nn.MSELoss()
+# 优化器将根据模型的损失函数和梯度信息来更新模型的参数
+# lr（默认值为 0.001）: 学习率（learning rate）。它是一个正数，控制每次参数更新的步长。
+
+loss_fn = torch.nn.MSELoss() # 默认用于计算两个输入对应元素差值平方和的均值。深度学习中，可以使用该函数用来计算两个特征图的相似性
 
 # 系统参数
 l_w = 27.0e-2
@@ -48,10 +52,10 @@ C_w = 1.128e-5
 
 gamma = 1  # 折扣因子
 gamma1 = 1
-dt = 0.02  # 执行间隔
+dt = 0.05  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(2)  # 2°的误差
+settle = np.deg2rad(5)  # 5°的误差
 
 # episode and training parameters
 episode = 100  # 总迭代数
@@ -62,7 +66,7 @@ playing_times = 1000  # 每个集合内收集多少轮数据
 concentrated_sample_times = 15  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
 batch_size = 5000  # 训练的时候，你是从学习经验池里面收集多少步用来训练
 reward_scale = 5  # 奖励尺度
-policy_entropy_coefficient = 0.001  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
+policy_entropy_coefficient = 0.005  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
 
 # Terminate conditions
 speed_rangeb = 2
@@ -85,78 +89,86 @@ class PendulumEnv:
         action = actions[act_index]
         ddthtbs = (-action + C_w * self.state[2] - C_b * self.state[1]) / (I_b + m_w * l_w ** 2)
         ddthtws = ((I_b + I_w + m_w * l_w ** 2) * (action - C_w * self.state[2]) / (I_w * (I_b + m_w * l_w ** 2))) + (C_b * self.state[1] / (I_b + m_w * l_w ** 2))
-        self.state[1] += ddthtbs * dt
-        self.state[0] += self.state[1] * dt
+        self.state[1] += ddthtbs * dt  # 牛顿法通过加速度迭代速度
+        self.state[0] += self.state[1] * dt  # 牛顿法通过速度迭代角度
         self.state[2] += ddthtws * dt
-        self.steps += 1
-        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle:
-            self.reward = reward_scale * 2  # 如果达到了目标，那么奖励5
-            success.append(1)
-            self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 50:  # 限制运行步数
+        self.steps += 1  # 当前步数+1
+        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle:  # 如果杆子角度和角速度都达到了要求
+            self.reward = reward_scale  # 如果达到了目标，那么奖励一次
+            success.append(1)  # success队列加上 1 代表成功了一次
+            self.over = True  # 此轮结束
+        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 50:  # 如果杆子角度超过了限制角度的1.3倍并且运行步数超过了50步
             self.reward = -reward_scale * 5  # 施加惩罚
             self.over = True
         else:
-            self.reward = 0
+            self.reward = 0  # 如果此时既没达到要求也没有超出边界，就不给仍和奖励
             self.over = False
-        # self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)
-        self.reward -= (abs(self.steps) * 0.001)
-        self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
+        # self.reward -= (abs(self.steps) * 0.01 + abs(action) * 0.5)
+        self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)  # 无论如何，最后都会对步数和采取的action再进行一次惩罚，目的是警示模型
+        self.next_state = np.array([self.state[0], self.state[1], self.state[2]])  # 传参给下一个状态
         self.state = np.copy(self.next_state)
         return self.next_state, self.reward, self.over
 
     def reset(self):
-        thtb = np.deg2rad(np.random.uniform(0, 90))  # 限制初始范围
-        dthtb = np.random.uniform(-speed_rangeb, speed_rangeb)
-        dthtw = np.random.uniform(-speed_rangew, speed_rangew)
-        self.state = np.array([thtb, dthtb, dthtw])
+        thtb = np.deg2rad(np.random.uniform(-90, 90))   # 在范围内随机生产一个实数
+        dthtb = np.random.uniform(-speed_rangeb, speed_rangeb)  # 在范围内随机生产一个实数
+        dthtw = np.random.uniform(-speed_rangew, speed_rangew)  # 在范围内随机生产一个实数
+        self.state = np.array([thtb, dthtb, dthtw])  # 将随机生成的数当作初始化的state
         self.steps = 0
         return self.state
 
     def define(self, theta1, dtheta1, dtheta2):
-        self.state = np.array([theta1, dtheta1, dtheta2])
+        self.state = np.array([theta1, dtheta1, dtheta2])  # 列表转为array
         return self.state
 
 
-env = PendulumEnv()
+env = PendulumEnv()  # 初始化环境
 
-# 开始训练
+
 def play():
     global experience_buffer_for_policy, experience_buffer_for_value, theta_nondim, speed_rangeb, speed_rangew
-    state_ = env.reset()
+    state_ = env.reset()  # 随机初始化state
     over_ = False
     experience_buffer_ = []
     while not over_:
-        state_in_net_ = np.array([(state_[0] - np.pi / 2) / theta_nondim, state_[1] / speed_rangeb, state_[2] / speed_rangew])
-        prob_ = policy(torch.FloatTensor(state_in_net_).reshape(1, 3).to(device))[0].cpu().detach().numpy()
-        action_index_ = np.random.choice(3, p=prob_)
+        state_in_net_ = np.array([(state_[0] - np.pi / 2) / theta_nondim, state_[1] / speed_rangeb, state_[2] / speed_rangew])  # 传入的参数进行了归一化
+        prob_ = policy(torch.FloatTensor(state_in_net_).reshape(1, 3).to(device))[0].cpu().detach().numpy()  # detach 会阻断反向传播，变量仍然在GPU
+        action_index_ = np.random.choice(3, p=prob_)  # 通过概率来选择action
         next_state_, reward_, over_ = env.step(action_index_)
-        action_prob_ = prob_[action_index_]
+        action_prob_ = prob_[action_index_]  # 动作的概率
         state_ = np.copy(next_state_)
         next_state_[0], next_state_[1], next_state_[2] = (
             (next_state_[0] - np.pi / 2) / theta_nondim, next_state_[1] / speed_rangeb, next_state_[2] / speed_rangew)
-        experience_buffer_.append([state_in_net_, action_index_, reward_, next_state_, over_, action_prob_, 0])
-        if over_:
+        experience_buffer_.append([state_in_net_, action_index_, reward_, next_state_, over_, action_prob_, 0])  # 经验池
+        if over_:  # 如果模型到达了目标
             delta_ = []
-            target_value_ = (1 - torch.FloatTensor(
-                np.array([experience_buffer_[i][4] for i in range(len(experience_buffer_))])).reshape(-1, 1).to(
-                device)) * model(
-                torch.FloatTensor(np.array([experience_buffer_[i][3] for i in range(len(experience_buffer_))])).to(
-                    device)) + torch.FloatTensor(
-                np.array([experience_buffer_[i][2] for i in range(len(experience_buffer_))]).reshape(-1, 1)).to(
-                device)
-            current_value_ = model(
-                torch.FloatTensor(np.array([experience_buffer_[i][0] for i in range(len(experience_buffer_))])).to(
-                    device))
-            target_value_ = (target_value_ - current_value_).reshape(-1, ).cpu().detach().numpy()
+            '''
+            # 目标，下一个状态的state_value  [b,1]
+            next_q_target = self.critic(next_states)
+            # 目标，当前状态的state_value  [b,1]
+            td_target = rewards + self.gamma * next_q_target * (1-dones)
+            # 预测，当前状态的state_value  [b,1]
+            td_value = self.critic(states)
+            # 目标值和预测值state_value之差  [b,1]
+            td_delta = td_target - td_value
+            '''
+            target_value_ = ((1 - torch.FloatTensor(np.array([experience_buffer_[i][4] for i in range(len(experience_buffer_))])).reshape(-1, 1).to(device))  # reshape 成一行
+                            * model(torch.FloatTensor(np.array([experience_buffer_[i][3] for i in range(len(experience_buffer_))])).to(device))
+                            + torch.FloatTensor(np.array([experience_buffer_[i][2] for i in range(len(experience_buffer_))]).reshape(-1, 1)).to(device))
+
+            current_value_ = model(torch.FloatTensor(np.array([experience_buffer_[i][0] for i in range(len(experience_buffer_))])).to(device))
+
+            target_value_ = (target_value_ - current_value_).reshape(-1, ).cpu().detach().numpy()  # 时序差分值 tensor-->numpy  [b,1]
+
             for _i in range(len(experience_buffer_)):
                 s = target_value_[_i]
                 for _j in range(_i, len(target_value_)):
-                    s += target_value_[_j] * gamma1 ** (_j - _i)
+                    s += target_value_[_j] * gamma1 ** (_j - _i)  # 乘上衰减率
                 delta_.append(s)
             for _i in range(len(experience_buffer_)):
                 experience_buffer_[_i][-1] = delta_[_i]
-            experience_buffer_for_policy.extend(experience_buffer_)
+
+            experience_buffer_for_policy.extend(experience_buffer_)  # 将experience_buffer_ 送入 experience_buffer_for_policy
             experience_buffer_for_value.extend(experience_buffer_)
             for _i in range(concentrated_sample_times):
                 experience_buffer_for_value.append([experience_buffer_[-1][0],
@@ -165,21 +177,22 @@ def play():
                                                     experience_buffer_[-1][3],
                                                     experience_buffer_[-1][4],
                                                     experience_buffer_[-1][5],
-                                                    experience_buffer_[-1][6]])
+                                                    experience_buffer_[-1][6]])  # 最后一次的 experience_buffer_ 所有值复制进experience_buffer_for_value
 
-# ppo公式化
+
 ini_b = 0
 for epoch in range(episode):
     success = []
     experience_buffer_for_policy = []
     experience_buffer_for_value = []
-    for _ in tqdm(range(playing_times)):
+    for _ in tqdm(range(playing_times)):  # 开始训练迭代
         play()
     print(f"the {epoch + 1} episode")
     print(f"success {len(success)} times for {playing_times} agents ")
+    # print(len(experience_buffer_for_value))
     if epoch > 1:
         ini_a = len(success)
-        if ini_a >= ini_b:
+        if ini_a >= ini_b:   # 如果成功的次数比上次的多，那么就覆盖最新的pth模型文件
             if os.path.exists(
                     f'./outputs/Policy_Net_Pytorch(-1,0,1)_{ini_b}.pth'):
                 os.remove(f'./outputs/Policy_Net_Pytorch(-1,0,1)_{ini_b}.pth')
@@ -193,7 +206,7 @@ for epoch in range(episode):
             ini_b = ini_a
 
     for ii in range(critic_training_times):
-        experience_buffer_proxy = random.sample(experience_buffer_for_value, batch_size)
+        experience_buffer_proxy = random.sample(experience_buffer_for_value, batch_size)  # 从经验池随机拿出数据进行策略迭代
         state = torch.FloatTensor(
             np.array([experience_buffer_proxy[i][0] for i in range(len(experience_buffer_proxy))])).to(device)
         reward = torch.FloatTensor(
@@ -207,13 +220,13 @@ for epoch in range(episode):
 
         for i in range(critic_training_steps):
             value = model(state).to(device)
-            with torch.no_grad():
+            with torch.no_grad():  # 不进行求导
                 target = model(next_state)
             target = target.to(device)
-            target = target * gamma * (1 - over) + reward
+            target = target * gamma * (1 - over) + reward # 当前状态的state_value
             loss = loss_fn(value, target).to(device)
             print(f"\r{loss}", end=" ")
-            loss.backward()
+            loss.backward()  # 反向传播
             optimizer_value.step()
             optimizer_value.zero_grad()
     state = torch.FloatTensor(
@@ -240,4 +253,4 @@ for epoch in range(episode):
         optimizer_policy.step()  # 梯度更新
         optimizer_policy.zero_grad()  # 梯度清零
     torch.save(policy.state_dict(), f'./outputs/Policy_Net_Pytorch(-1,0,1).pth')
-    torch.save(model.state_dict(),f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic.pth')
+    torch.save(model.state_dict(), f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic.pth')
