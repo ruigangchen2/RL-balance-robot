@@ -10,7 +10,7 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
 policy.load_state_dict(
-    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/90-(-90)_Policy_Net_Pytorch(-1,0,1).pth'))
+    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/5degrees-PPO-zero-torque.pth'))
 policy.to('cpu')
 
 l_w = 27.0e-2
@@ -69,14 +69,14 @@ class PendulumEnv:
             self.reward = reward_scale
             success.append(1)
             self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 50:  # 180
+        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 120:
             self.reward = -reward_scale * 5
             self.over = True
         else:
             self.reward = 0
             self.over = False
         # self.reward -= (abs(self.steps / 660))*0.1  # + abs(self.state[2] / 160)) * 0.1
-        self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)
+        self.reward -= abs(action) * 3
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
         return self.next_state, self.reward, self.over

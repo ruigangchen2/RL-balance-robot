@@ -28,9 +28,9 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1)) #Softmax会将输出值归位于 [0,1] 范围内，但总和为 1。
 # 加载预训练模型权重
 model.load_state_dict(
-    torch.load('./outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_critic_2.pth'))
+    torch.load('./outputs/5degrees-PPO-zero-torque-critic-3.pth'))
 policy.load_state_dict(
-    torch.load('./outputs/5degrees_Policy_Net_Pytorch(-1,0,1)_2.pth'))
+    torch.load('./outputs/5degrees-PPO-zero-torque-3.pth'))
 
 model.to(device)
 policy.to(device)
@@ -40,7 +40,7 @@ optimizer_policy = torch.optim.Adam(policy.parameters(), lr=1e-4)  # 策略网�
 # 优化器将根据模型的损失函数和梯度信息来更新模型的参数
 # lr（默认值为 0.001）: 学习率（learning rate）。它是一个正数，控制每次参数更新的步长。
 
-loss_fn = torch.nn.MSELoss() # 默认用于计算两个输入对应元素差值平方和的均值。深度学习中，可以使用该函数用来计算两个特征图的相似性
+loss_fn = torch.nn.MSELoss()  # 默认用于计算两个输入对应元素差值平方和的均值。深度学习中，可以使用该函数用来计算两个特征图的相似性
 
 # 系统参数
 l_w = 27.0e-2
@@ -50,18 +50,17 @@ I_w = 1.08e-4
 C_b = 2.388e-3
 C_w = 1.128e-5
 
-gamma = 1  # 折扣因子
-gamma1 = 1
+gamma = 0.95  # 折扣因子
 dt = 0.05  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
 settle = np.deg2rad(5)  # 5°的误差
 
 # episode and training parameters
-episode = 100  # 总迭代数
+episode = 120  # 总迭代数
 critic_training_times = 20  # 每个集合内critic用多少次经验训练
 critic_training_steps = 50  # critic每次训练多少步
-actor_training_times = 10  # 每个集合内actor用多少次经验训练
+actor_training_times = 100  # 每个集合内actor用多少次经验训练
 playing_times = 1000  # 每个集合内收集多少轮数据
 concentrated_sample_times = 15  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
 batch_size = 5000  # 训练的时候，你是从学习经验池里面收集多少步用来训练
@@ -97,14 +96,14 @@ class PendulumEnv:
             self.reward = reward_scale  # 如果达到了目标，那么奖励一次
             success.append(1)  # success队列加上 1 代表成功了一次
             self.over = True  # 此轮结束
-        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 50:  # 如果杆子角度超过了限制角度的1.3倍并且运行步数超过了50步
-            self.reward = -reward_scale * 5  # 施加惩罚
+        elif abs(self.state[0]) > theta_nondim * 1.3 and abs(self.steps) > 120:  # 如果杆子角度超过了限制角度的1.3倍并且运行步数超过了50步
+            self.reward = -reward_scale # 施加惩罚
             self.over = True
         else:
             self.reward = 0  # 如果此时既没达到要求也没有超出边界，就不给仍和奖励
             self.over = False
-        # self.reward -= (abs(self.steps) * 0.01 + abs(action) * 0.5)
-        self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)  # 无论如何，最后都会对步数和采取的action再进行一次惩罚，目的是警示模型
+        # self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)  # 无论如何，最后都会对步数和采取的action再进行一次惩罚，目的是警示模型
+        self.reward -= (abs(action) * 5)
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])  # 传参给下一个状态
         self.state = np.copy(self.next_state)
         return self.next_state, self.reward, self.over
@@ -163,7 +162,7 @@ def play():
             for _i in range(len(experience_buffer_)):
                 s = target_value_[_i]
                 for _j in range(_i, len(target_value_)):
-                    s += target_value_[_j] * gamma1 ** (_j - _i)  # 乘上衰减率
+                    s += target_value_[_j] * gamma ** (_j - _i)  # 乘上衰减率
                 delta_.append(s)
             for _i in range(len(experience_buffer_)):
                 experience_buffer_[_i][-1] = delta_[_i]
@@ -189,20 +188,19 @@ for epoch in range(episode):
         play()
     print(f"the {epoch + 1} episode")
     print(f"success {len(success)} times for {playing_times} agents ")
-    # print(len(experience_buffer_for_value))
     if epoch > 1:
         ini_a = len(success)
         if ini_a >= ini_b:   # 如果成功的次数比上次的多，那么就覆盖最新的pth模型文件
             if os.path.exists(
-                    f'./outputs/Policy_Net_Pytorch(-1,0,1)_{ini_b}.pth'):
-                os.remove(f'./outputs/Policy_Net_Pytorch(-1,0,1)_{ini_b}.pth')
+                    f'./outputs/5degrees-PPO-zero-torque-{ini_b}.pth'):
+                os.remove(f'./outputs/5degrees-PPO-zero-torque-{ini_b}.pth')
             if os.path.exists(
-                    f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_b}.pth'):
-                os.remove(f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_b}.pth')
+                    f'./outputs/5degrees-PPO-zero-torque-critic-{ini_b}.pth'):
+                os.remove(f'./outputs/5degrees-PPO-zero-torque-critic-{ini_b}.pth')
             torch.save(policy.state_dict(),
-                       f'./outputs/Policy_Net_Pytorch(-1,0,1)_{ini_a}.pth')
+                       f'./outputs/5degrees-PPO-zero-torque-{ini_a}.pth')
             torch.save(model.state_dict(),
-                       f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic_{ini_a}.pth')
+                       f'./outputs/5degrees-PPO-zero-torque-critic-{ini_a}.pth')
             ini_b = ini_a
 
     for ii in range(critic_training_times):
@@ -247,10 +245,10 @@ for epoch in range(episode):
         new_prob = policy(state).gather(dim=1, index=action_current.long()).to(device)
         entropy = torch.log(new_prob + 1e-10)  # 计算策略熵
         loss1 = new_prob / old_prob * delta
-        loss2 = (new_prob / old_prob).clamp(-0.8, 1.2) * delta
+        loss2 = (new_prob / old_prob).clamp(0.8, 1.2) * delta
         loss = -torch.min(loss1, loss2).mean() + entropy.mean() * policy_entropy_coefficient
         loss.backward()  # 反向传播
         optimizer_policy.step()  # 梯度更新
         optimizer_policy.zero_grad()  # 梯度清零
-    torch.save(policy.state_dict(), f'./outputs/Policy_Net_Pytorch(-1,0,1).pth')
-    torch.save(model.state_dict(), f'./outputs/Policy_Net_Pytorch(-1,0,1)_critic.pth')
+    torch.save(policy.state_dict(), f'./outputs/5degrees-PPO-zero-torque.pth')
+    torch.save(model.state_dict(), f'./outputs/5degrees-PPO-zero-torque-critic.pth')
