@@ -11,16 +11,22 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
 policy.load_state_dict(
-    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/90-(-90)_Policy_Net_Pytorch(-1,0,1).pth'))
+    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/5degrees-PPO-zero-torque.pth'))
 policy.to('cpu')
+
+# l_w = 27.0e-2
+# m_w = 72.0e-3
+# I_b = 8.849e-3
+# I_w = 1.08e-4
+# C_b = 2.388e-3
+# C_w = 1.128e-5
 
 l_w = 27.0e-2
 m_w = 72.0e-3
-I_b = 8.849e-3
+I_b = 9.849e-3
 I_w = 1.08e-4
-C_b = 2.388e-3
+C_b = 1.388e-2
 C_w = 1.128e-5
-
 
 dt = 0.05
 torque = 0.07
@@ -29,10 +35,10 @@ actions = [-torque, 0, torque]
 settle = np.deg2rad(5)
 
 # episode and training parameters
-episode = 100  # 总迭代数
+episode = 120  # 总迭代数
 critic_training_times = 20  # 每个集合内critic用多少次经验训练
 critic_training_steps = 50  # critic每次训练多少步
-actor_training_times = 10  # 每个集合内actor用多少次经验训练
+actor_training_times = 100  # 每个集合内actor用多少次经验训练
 playing_times = 1000  # 每个集合内收集多少轮数据
 concentrated_sample_times = 15  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
 batch_size = 5000  # 训练的时候，你是从学习经验池里面收集多少步用来训练
@@ -68,13 +74,14 @@ class PendulumEnv:
             self.reward = reward_scale
             success.append(1)
             self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 50:  # 180
-            self.reward = -reward_scale * 5
+        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 120:
+            self.reward = -reward_scale
             self.over = True
         else:
             self.reward = 0
             self.over = False
-        self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)
+        # self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)
+        self.reward -= (abs(action) * 5)
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
         return self.next_state, self.reward, self.over
@@ -153,13 +160,10 @@ dthetas1.append(state[1] * 180 / np.pi)
 dthetas2.append(state[2] * 180 / np.pi)
 
 
-K_m = 33.5e-3
-Current_max = 2.3
+start = 183
+end = -1
 
-start = 185
-end = -10
-
-data = pd.read_csv("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/analysis/experiment data/20240813.csv", low_memory=False)
+data = pd.read_csv("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/analysis/experiment data/20240815-efficient.csv", low_memory=False)
 time = np.array(data['time'].ravel())[start:end].astype('float')
 theta_b = np.array(data['theta_b'].ravel())[start:end].astype('float')
 dtheta_b = np.array(data['dtheta_b'].ravel())[start:end].astype('float')
@@ -176,19 +180,19 @@ plt.axis('off')
 horizontal_line_5 = [5] * (count_time + 1)
 horizontal_line_5_ = [-5] * (count_time + 1)  # * np.pi / 180
 start_point = 0
-plt.subplot(3, 1, 1)
+plt.subplot(4, 1, 1)
 plt.ylabel(r'$\theta$ [$^\circ$]')
 plt.xlim([0, (count_time - 2) * dt])
 plt.plot(time, theta_b, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
-plt.plot(np.array(range(count_time-2)) * dt, thetas1[:-3], 'b-*', label='Simu.')
+plt.plot(np.array(range(count_time+1)) * dt, thetas1, 'b-*', label='Simu.')
 plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_time - 2),
                               horizontal_line_5[start_point] - horizontal_line_5_[start_point],
                               edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
 plt.legend(ncol=2)
 plt.xticks([])
 plt.tight_layout()
-plt.subplot(3, 1, 2)
+plt.subplot(4, 1, 2)
 plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
 plt.xlim([0, (count_time - 2) * dt])
 plt.plot(time, dtheta_b, 'r-*', label='Exp.')
@@ -200,7 +204,22 @@ plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_
 plt.legend(ncol=2)
 plt.xticks([])
 plt.tight_layout()
-plt.subplot(3, 1, 3)
+
+
+plt.subplot(4, 1, 3)
+plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
+plt.xlim([0, (count_time - 2) * dt])
+plt.plot(time, dtheta_w, 'r-*', label='Exp.')
+plt.plot(time, [0] * len(time), 'k--')
+plt.plot(np.array(range(count_time+1)) * dt, dthetas2, 'b-*', label='Simu.')
+plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_time + 1),
+                              horizontal_line_5[start_point] - horizontal_line_5_[start_point],
+                              edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
+plt.legend(ncol=2)
+plt.xticks([])
+plt.tight_layout()
+
+plt.subplot(4, 1, 4)
 plt.xlabel('Time [s]')
 plt.ylabel(r'$\tau$  [Nm]')
 plt.ylim([-1.2, 1.2])
