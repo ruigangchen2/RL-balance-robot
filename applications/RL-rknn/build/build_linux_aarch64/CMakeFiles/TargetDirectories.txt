@@ -1,0 +1,7 @@
+/root/RL-rknn/build/build_linux_aarch64/CMakeFiles/install/strip.dir
+/root/RL-rknn/build/build_linux_aarch64/CMakeFiles/install/local.dir
+/root/RL-rknn/build/build_linux_aarch64/CMakeFiles/install.dir
+/root/RL-rknn/build/build_linux_aarch64/CMakeFiles/list_install_components.dir
+/root/RL-rknn/build/build_linux_aarch64/CMakeFiles/rebuild_cache.dir
+/root/RL-rknn/build/build_linux_aarch64/CMakeFiles/edit_cache.dir
+/root/RL-rknn/build/build_linux_aarch64/CMakeFiles/rknn_test.dir

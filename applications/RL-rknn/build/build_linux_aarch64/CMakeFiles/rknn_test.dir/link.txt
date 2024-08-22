@@ -1,0 +1,1 @@
+/usr/bin/g++   -std=c++11   CMakeFiles/rknn_test.dir/src/main.cpp.o CMakeFiles/rknn_test.dir/src/ADS1x15.cpp.o  -o rknn_test  -Wl,-rpath,/root/RL-rknn/lib: ../../lib/librknnrt.so -lpthread -lwiringPi -lcrypt -lm -lrt -fconcepts -li2c 

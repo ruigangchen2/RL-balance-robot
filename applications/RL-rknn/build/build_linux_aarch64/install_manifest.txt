@@ -1,0 +1,4 @@
+/root/RL-rknn/install/rknn_test_Linux/./rknn_test
+/root/RL-rknn/install/rknn_test_Linux/lib/librknnrt.so
+/root/RL-rknn/install/rknn_test_Linux/.//model/PPO_efficient.rknn
+/root/RL-rknn/install/rknn_test_Linux/.//model/PPO_fast.rknn
