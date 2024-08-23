@@ -1,0 +1,4 @@
+/root/RL-balance-robot/applications/RL-rknn-vertical/install/rknn_test_Linux/./rknn_test
+/root/RL-balance-robot/applications/RL-rknn-vertical/install/rknn_test_Linux/lib/librknnrt.so
+/root/RL-balance-robot/applications/RL-rknn-vertical/install/rknn_test_Linux/.//model/PPO_efficient.rknn
+/root/RL-balance-robot/applications/RL-rknn-vertical/install/rknn_test_Linux/.//model/PPO_fast.rknn
