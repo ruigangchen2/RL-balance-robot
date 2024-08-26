@@ -28,7 +28,7 @@ gamma = 0.95  # 折扣因子
 dt = 0.02  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(2)  # 2°的误差
+settle = np.deg2rad(5)  # 2°的误差
 
 
 # episode and training parameters

@@ -25,11 +25,11 @@ nnn = 512
 # 实例化策略网络
 policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # 双曲正切激活函数
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
-                             torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
+                             torch.nn.Linear(nnn, 13), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
 model.load_state_dict(
-    torch.load('./outputs/PPO_vertical_critic_3.pth'))
+    torch.load('./13outputs/PPO_vertical_critic_3.pth'))
 policy.load_state_dict(
-    torch.load('./outputs/PPO_vertical_3.pth'))
+    torch.load('./13outputs/PPO_vertical_3.pth'))
 
 model.to(device)
 policy.to(device)
@@ -50,22 +50,24 @@ C_w = 0.126e-4
 g = 9.81
 
 
-gamma = 0.95  # 折扣因子
+gamma = 0.98  # 折扣因子
 dt = 0.02  # 执行间隔
 torque = 0.07  # 力矩
-actions = [-torque, 0, torque]  # action 只有三个
+actions = [-torque, -torque * 0.8, -torque * 0.6, -torque * 0.4, -torque * 0.2, -torque * 0.1,
+           0,
+           torque * 0.1, torque * 0.2, torque * 0.4, torque * 0.6, torque * 0.7, torque]
 settle = np.deg2rad(2)  # 2°的误差
 
 # episode and training parameters
 episode = 120  # 总迭代数
-critic_training_times = 20  # 每个集合内critic用多少次经验训练
-critic_training_steps = 50  # critic每次训练多少步
-actor_training_times = 100  # 每个集合内actor用多少次经验训练
+critic_training_times = 50  # 每个集合内critic用多少次经验训练
+critic_training_steps = 70  # critic每次训练多少步
+actor_training_times = 200  # 每个集合内actor用多少次经验训练
 playing_times = 1000  # 每个集合内收集多少轮数据
-concentrated_sample_times = 15  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
+concentrated_sample_times = 30  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
 batch_size = 5000  # 训练的时候，你是从学习经验池里面收集多少步用来训练
 reward_scale = 5  # 奖励尺度
-policy_entropy_coefficient = 0.005  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
+policy_entropy_coefficient = 0.01  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
 
 # Terminate conditions
 speed_rangeb = 2
@@ -92,18 +94,18 @@ class PendulumEnv:
         self.state[0] += self.state[1] * dt
         self.state[2] += ddthtws * dt
         self.steps += 1
-        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle * 10:
+        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle * 30 and abs(self.state[2] - dthtw_target) < settle * 150:
             self.reward = reward_scale  # 如果达到了目标，那么奖励5
             success.append(1)
             self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.2 and abs(self.steps) > 50:
+        elif abs(self.state[0]) > theta_nondim * 1.2 and abs(self.steps) > 70:
             self.reward = -reward_scale * 5  # 施加惩罚
             self.over = True
         else:
             self.reward = 0
             self.over = False
         # self.reward -= (abs(self.steps) * 0.01 + abs(action) * 0.5)
-        self.reward -= (abs(self.steps) * 0.07)
+        # self.reward -= (abs(self.steps) * 0.07)
 
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
@@ -133,7 +135,7 @@ def play():
     while not over_:
         state_in_net_ = np.array([(state_[0] - np.pi / 2) / theta_nondim, state_[1] / speed_rangeb, state_[2] / speed_rangew])
         prob_ = policy(torch.FloatTensor(state_in_net_).reshape(1, 3).to(device))[0].cpu().detach().numpy()
-        action_index_ = np.random.choice(3, p=prob_)
+        action_index_ = np.random.choice(13, p=prob_)
         next_state_, reward_, over_ = env.step(action_index_)
         action_prob_ = prob_[action_index_]
         state_ = np.copy(next_state_)
@@ -186,15 +188,15 @@ for epoch in range(episode):
         ini_a = len(success)
         if ini_a >= ini_b:
             if os.path.exists(
-                    f'./outputs/PPO_vertical_{ini_b}.pth'):
-                os.remove(f'./outputs/PPO_vertical__{ini_b}.pth')
+                    f'./13outputs/PPO_vertical_{ini_b}.pth'):
+                os.remove(f'./13outputs/PPO_vertical__{ini_b}.pth')
             if os.path.exists(
-                    f'./outputs/PPO_vertical__critic_{ini_b}.pth'):
-                os.remove(f'./outputs/PPO_vertical__critic_{ini_b}.pth')
+                    f'./13outputs/PPO_vertical__critic_{ini_b}.pth'):
+                os.remove(f'./13outputs/PPO_vertical__critic_{ini_b}.pth')
             torch.save(policy.state_dict(),
-                       f'./outputs/PPO_vertical__{ini_a}.pth')
+                       f'./13outputs/PPO_vertical__{ini_a}.pth')
             torch.save(model.state_dict(),
-                       f'./outputs/PPO_vertical__critic_{ini_a}.pth')
+                       f'./13outputs/PPO_vertical__critic_{ini_a}.pth')
             ini_b = ini_a
 
     for ii in range(critic_training_times):
@@ -244,5 +246,5 @@ for epoch in range(episode):
         loss.backward()  # 反向传播
         optimizer_policy.step()  # 梯度更新
         optimizer_policy.zero_grad()  # 梯度清零
-    torch.save(policy.state_dict(), f'./outputs/PPO_vertical.pth')
-    torch.save(model.state_dict(), f'./outputs/PPO_vertical_critic.pth')
+    torch.save(policy.state_dict(), f'./13outputs/PPO_vertical.pth')
+    torch.save(model.state_dict(), f'./13outputs/PPO_vertical_critic.pth')
