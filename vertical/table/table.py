@@ -6,7 +6,6 @@ from numba import njit
 import h5py
 
 
-
 @njit
 def calc_new_state(y_, action_, c_w_, c_b_, i_w_, i_b_, m_w_, m_b_, l_w_, l_b_, g_):
     ddthtbs_ = ((m_b_ * l_b_ + m_w_ * l_w_) * g_ * np.sin(y_[0]) - action_ + c_w_ * y_[2] - c_b_ * y_[1]) / (i_b_ + m_w_ * l_w_ ** 2)
@@ -25,12 +24,12 @@ C_b = 0.27e-3
 C_w = 0.126e-4
 g = 9.81
 
-
 gamma = 0.95  # 折扣因子
-dt = 0.02  # 执行间隔
+dt = 0.01  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
 settle = np.deg2rad(2)  # 2°的误差
+
 
 # Terminate conditions
 speed_rangeb = 2
@@ -39,6 +38,7 @@ theta_nondim = 20 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
+
 
 simu_time = 1  # 总的仿真时间长度，除以dt是进行了多少步
 success = []
@@ -50,12 +50,12 @@ nnn = 512
 policy1 = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                               torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                               torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
-policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/training/outputs/PPO_vertical.pth'))
+policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/training/outputs/PPO_vertical_4.pth'))
 policy1.to('cpu')
 
 N1 = 20   # tehta_b
-N2 = 100   # dtehta_b
-N3 = 100  # dtehta_w
+N2 = 50   # dtehta_b
+N3 = 50  # dtehta_w
 
 
 N = N1
@@ -66,7 +66,6 @@ working_save = np.zeros((N1, N2, N3))
 flag = 0  # 成功的次数
 
 for i_ in tqdm(range(N1)):
-    print(flag)
     for j in range(N2):
         for k in range(N3):
             working_save[i_, j, k] = -2
@@ -74,7 +73,7 @@ for i_ in tqdm(range(N1)):
             con = 0
             a_save = 0
             for step in range(steps):
-                if abs(y[0] - thtb_target) < settle and abs(y[1] - dthtb_target) < settle * 20:
+                if abs(y[0] - thtb_target) < settle and abs(y[1] - dthtb_target) < settle * 10:
                     flag += 1
                     working_save[i_, j, k] = a_save
                     break
@@ -95,7 +94,7 @@ for i_ in tqdm(range(N1)):
                     con += 1
                 if abs(y[0]) > theta_nondim * 1.2:
                     break
-                if abs(y[0] - thtb_target) < settle and abs(y[1] - np.deg2rad(dthtb_target)) < settle * 20:
+                if abs(y[0] - thtb_target) < settle and abs(y[1] - np.deg2rad(dthtb_target)) < settle * 10:
                     flag += 1
                     working_save[i_, j, k] = a_save
                     break
