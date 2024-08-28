@@ -33,7 +33,7 @@ settle = np.deg2rad(5)  # 2°的误差
 
 # Terminate conditions
 speed_rangeb = 2
-speed_rangew = 30
+speed_rangew = 500
 theta_nondim = 20 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
@@ -45,7 +45,7 @@ success = []
 steps = int(simu_time / dt)
 
 # ========================================================================================================================
-device = torch.device("cuda")
+device = torch.device("cpu")
 nnn = 512
 policy1 = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                               torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
@@ -54,8 +54,8 @@ policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-bala
 policy1.to('cpu')
 
 N1 = 40   # tehta_b
-N2 = 200   # dtehta_b
-N3 = 200  # dtehta_w
+N2 = 50   # dtehta_b
+N3 = 500  # dtehta_w
 
 
 N = N1
