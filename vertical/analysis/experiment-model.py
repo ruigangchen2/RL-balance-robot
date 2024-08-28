@@ -11,28 +11,27 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
 policy.load_state_dict(
-    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/training/outputs/5degrees-PPO-zero-torque.pth'))
+    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/training/outputs/PPO_vertical_4.pth'))
 policy.to('cpu')
 
-# l_w = 27.0e-2
-# m_w = 72.0e-3
-# I_b = 8.849e-3
-# I_w = 1.08e-4
-# C_b = 2.388e-3
-# C_w = 1.128e-5
 
-l_w = 27.0e-2
-m_w = 72.0e-3
-I_b = 9.849e-3
-I_w = 1.08e-4
-C_b = 1.388e-2
-C_w = 1.128e-5
+# 系统参数
+l_w = 0.083
+l_b = 0.062
+m_w = 0.0434
+m_b = 0.178
+I_b = 0.9e-3
+I_w = 0.731e-4
+C_b = 0.27e-3
+C_w = 0.126e-4
+g = 9.81
 
-dt = 0.05
-torque = 0.07
-actions = [-torque, 0, torque]
-# target location
-settle = np.deg2rad(5)
+gamma = 0.95  # 折扣因子
+dt = 0.02  # 执行间隔
+torque = 0.07  # 力矩
+actions = [-torque, 0, torque]  # action 只有三个
+settle = np.deg2rad(2)  # 2°的误差
+
 
 # episode and training parameters
 episode = 120  # 总迭代数
@@ -48,11 +47,10 @@ policy_entropy_coefficient = 0.005  # 熵值函数。简单来说就是让学习
 # Terminate conditions
 speed_rangeb = 2
 speed_rangew = 30
-theta_nondim = 90 * np.pi / 180
+theta_nondim = 20 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
-
 
 class PendulumEnv:
     def __init__(self):
@@ -64,30 +62,30 @@ class PendulumEnv:
 
     def step(self, act_index):
         action = actions[act_index]
-        ddthtbs = (-action + C_w * self.state[2] - C_b * self.state[1]) / (I_b + m_w * l_w ** 2)
-        ddthtws = ((I_b + I_w + m_w * l_w ** 2) * (action - C_w * self.state[2]) / (I_w * (I_b + m_w * l_w ** 2))) + (C_b * self.state[1] / (I_b + m_w * l_w ** 2))
+        ddthtbs = ((m_b * l_b + m_w * l_w) * g * np.sin(self.state[0]) - action + C_w * self.state[2] - C_b *self.state[1]) / (I_b + m_w * l_w ** 2)
+        ddthtws = ((I_b + I_w + m_w * l_w ** 2) * (action - C_w * self.state[2]) / (I_w * (I_b + m_w * l_w ** 2))) + ((C_b * self.state[1] - (m_b * l_b + m_w * l_w) * g * np.sin(self.state[0])) / (I_b + m_w * l_w ** 2))
         self.state[1] += ddthtbs * dt
         self.state[0] += self.state[1] * dt
         self.state[2] += ddthtws * dt
         self.steps += 1
-        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle:  # and abs(
+        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle * 10:  # and abs(
             self.reward = reward_scale
             success.append(1)
             self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 120:
+        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 50:
             self.reward = -reward_scale
             self.over = True
         else:
             self.reward = 0
             self.over = False
-        # self.reward -= (abs(self.steps) * 0.007 + abs(action) * 0.1)
-        self.reward -= (abs(action) * 5)
+        self.reward -= (abs(self.steps) * 0.07)
+        
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
         return self.next_state, self.reward, self.over
 
     def reset(self):
-        thtb = np.deg2rad(np.random.uniform(-90, 90))
+        thtb = np.deg2rad(np.random.uniform(-theta_nondim * 180 /np.pi, theta_nondim * 180 /np.pi))
         dthtb = np.random.uniform(-speed_rangeb, speed_rangeb)
         dthtw = np.random.uniform(-speed_rangew, speed_rangew)
         self.state = np.array([thtb, dthtb, dthtw])
@@ -108,7 +106,7 @@ count = 0
 frames = []
 success = []
 y = np.zeros(4)
-y[0] = 50 * np.pi / 180
+y[0] = 19 * np.pi / 180
 y[1] = 0
 y[2] = 0
 over = False
@@ -148,58 +146,54 @@ while not over:
     plt.show()
     plt.pause(1e-5)
     state = np.copy(next_state)
-    plt.savefig(f'C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/images/img_{count}.png', transparent=False,
+    plt.savefig(f'C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/images/img_{count}.png', transparent=False,
                 facecolor='white')
-    image = imageio.v2.imread(f'C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/images/img_{count}.png')
+    image = imageio.v2.imread(f'C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/images/img_{count}.png')
     count += 1
     count_time += 1
     frames.append(image)
-imageio.mimsave('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/images/example-1.gif', frames, duration=60, loop=0)
-thetas1.append(state[0] * 180 / np.pi)
-dthetas1.append(state[1] * 180 / np.pi)
-dthetas2.append(state[2] * 180 / np.pi)
+imageio.mimsave('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/images/example-1.gif', frames, duration=60, loop=0)
 
 
-start = 183
-end = -1
+start = 11470
+end = 11830
 
-data = pd.read_csv("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/analysis/experiment data/20240815-efficient.csv", low_memory=False)
+data = pd.read_csv("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/analysis/experiment data/20240827.csv", low_memory=False)
 time = np.array(data['time'].ravel())[start:end].astype('float')
 theta_b = np.array(data['theta_b'].ravel())[start:end].astype('float')
 dtheta_b = np.array(data['dtheta_b'].ravel())[start:end].astype('float')
 dtheta_w = np.array(data['dtheta_w'].ravel())[start:end].astype('float')
 action = np.array(data['action'].ravel())[start:end].astype('float')
-action = action - 1
 time = (time - time[0])/1000
 
 
-plt.figure(figsize=(4, 4), dpi=200)
+plt.figure(figsize=(6, 5), dpi=200)
 plt.xticks([])
 plt.yticks([])
 plt.axis('off')
-horizontal_line_5 = [5] * (count_time + 1)
-horizontal_line_5_ = [-5] * (count_time + 1)  # * np.pi / 180
+vertical_line_5 = [2] * (count_time + 1)
+vertical_line_5_ = [-2] * (count_time + 1)  # * np.pi / 180
 start_point = 0
 plt.subplot(4, 1, 1)
 plt.ylabel(r'$\theta$ [$^\circ$]')
-plt.xlim([0, (count_time - 2) * dt])
+plt.xlim([0, (count_time) * dt])
 plt.plot(time, theta_b, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
-plt.plot(np.array(range(count_time+1)) * dt, thetas1, 'b-*', label='Simu.')
-plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_time - 2),
-                              horizontal_line_5[start_point] - horizontal_line_5_[start_point],
+plt.plot(np.array(range(count_time-1)) * dt, thetas1[1:], 'b-*', label='Simu.')
+plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time - 2),
+                              vertical_line_5[start_point] - vertical_line_5_[start_point],
                               edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
 plt.legend(ncol=2)
 plt.xticks([])
 plt.tight_layout()
 plt.subplot(4, 1, 2)
 plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
-plt.xlim([0, (count_time - 2) * dt])
+plt.xlim([0, (count_time) * dt])
 plt.plot(time, dtheta_b, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
-plt.plot(np.array(range(count_time+1)) * dt, dthetas1, 'b-*', label='Simu.')
-plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_time + 1),
-                              horizontal_line_5[start_point] - horizontal_line_5_[start_point],
+plt.plot(np.array(range(count_time-1)) * dt, dthetas1[1:], 'b-*', label='Simu.')
+plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time + 1),
+                              vertical_line_5[start_point] - vertical_line_5_[start_point],
                               edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
 plt.legend(ncol=2)
 plt.xticks([])
@@ -208,12 +202,12 @@ plt.tight_layout()
 
 plt.subplot(4, 1, 3)
 plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
-plt.xlim([0, (count_time - 2) * dt])
+plt.xlim([0, (count_time) * dt])
 plt.plot(time, dtheta_w, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
-plt.plot(np.array(range(count_time+1)) * dt, dthetas2, 'b-*', label='Simu.')
-plt.gca().add_patch(Rectangle((0, horizontal_line_5_[start_point]), dt * (count_time + 1),
-                              horizontal_line_5[start_point] - horizontal_line_5_[start_point],
+plt.plot(np.array(range(count_time-1)) * dt, dthetas2[1:], 'b-*', label='Simu.')
+plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time + 1),
+                              vertical_line_5[start_point] - vertical_line_5_[start_point],
                               edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
 plt.legend(ncol=2)
 plt.xticks([])
@@ -223,7 +217,7 @@ plt.subplot(4, 1, 4)
 plt.xlabel('Time [s]')
 plt.ylabel(r'$\tau$  [Nm]')
 plt.ylim([-1.2, 1.2])
-plt.xlim([0, (count_time - 2) * dt])
+plt.xlim([0, (count_time) * dt])
 plt.plot(time, action, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.step(np.array(range(count_time)) * dt, np.array(actions_1)/0.07, 'b-*', label='Simu.')
@@ -231,4 +225,4 @@ plt.yticks([-1, 0, 1], ["-0.07", "0", "0.07"])
 plt.legend(ncol=2)
 plt.show()
 plt.tight_layout()
-plt.savefig("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/horizontal/analysis/figure.svg")
+plt.savefig("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/analysis/figure.svg")
