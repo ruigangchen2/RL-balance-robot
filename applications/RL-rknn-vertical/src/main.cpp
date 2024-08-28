@@ -42,7 +42,7 @@ pthread_mutex_t mutex_PT;  //init the pthread_mutex_t
 /*-------------------------------------------
                   Variables
 -------------------------------------------*/
-static volatile int key_value = 1;
+int key_value = 1;
 /*-------------------------------------------
                   RKNN
 -------------------------------------------*/
@@ -63,9 +63,9 @@ int Maxon_PWM= 0;
 /*-------------------------------------------
                   ADS
 -------------------------------------------*/
-uint16_t adc0;
-float volts0;
-
+uint16_t adc0 = 0;
+float volts0 = 0;
+float error = 0;
 /*-------------------------------------------
                   Time testing
 -------------------------------------------*/
@@ -87,10 +87,10 @@ float dtheta_b_matrix[matrix_number] = {0};
 float dtheta_w_matrix[matrix_number] = {0};
 float action_matrix[matrix_number] = {0};
 
-
-void* Thread_5ms(void* arg);
-void* Thread_50ms(void* arg);
-void* File_thread(void* arg);
+void* Thread_adc(void* arg);
+void* Thread_imu(void* arg);
+void* Thread_action(void* arg);
+void* Thread_file(void* arg);
 void T_start();
 double T_end();
 static void dump_tensor_attr(rknn_tensor_attr *attr);
@@ -158,10 +158,10 @@ int main(int argc, char *argv[])
    if (!ads.begin(3, ADS1X15_ADDRESS)) {
       while (1);
    }
-   cout << "  ADS1115 init done!" << endl;
+   cout << "ADS1115 init done!" << endl;
 
 	ms_open();
-   cout << "  IMU init done!" << endl;
+   cout << "IMU init done!" << endl;
 
    wiringPiSetup();
    pinMode(DIR_Pin, OUTPUT);
@@ -171,8 +171,10 @@ int main(int argc, char *argv[])
    //我们把pwm分为2400分，要5000hz的pwm频率，那时钟频率=24000000 Hz /(5000 * 2400)=2
    pwmSetClock(PWM_Pin,2);
    pwmSetRange(PWM_Pin,2400);
-   pwmWrite(PWM_Pin,10);
+   pwmWrite(PWM_Pin,240);
    digitalWrite(EN_Pin,HIGH);
+   digitalWrite(DIR_Pin,HIGH);
+
 
    //************** file *****************
    FILE *fd = fopen("./data.csv", "w+");
@@ -184,38 +186,47 @@ int main(int argc, char *argv[])
    fprintf(fd, "time,theta_b,dtheta_b,dtheta_w,action\n");
    //*************************************
 
-   pthread_t id1,id2,id3;
+   pthread_t id1,id2,id3,id4;
 	int value;
-   void *reVal, *reVa2, *reVa3;
+   void *reVa1, *reVa2, *reVa3, *reVa4;
 
-   value = pthread_create(&id1, NULL, Thread_5ms, NULL);
-   pthread_setname_np(id1, "Thread_5ms");
+   value = pthread_create(&id1, NULL, Thread_imu, (void *)fd);
+   pthread_setname_np(id1, "Thread_imu");
 	if(value){
-      cout << "  Thread_5ms is not created!" << endl;
+      cout << "  Thread_imu is not created!" << endl;
       return -1;
 	}
 
-   value = pthread_create(&id2, NULL, File_thread, (void *)fd);
-   pthread_setname_np(id2, "File_thread");
+   value = pthread_create(&id2, NULL, Thread_file, (void *)fd);
+   pthread_setname_np(id2, "Thread_file");
 	if(value){
-      cout << "  File_thread is not created!" << endl;
+      cout << "  Thread_file is not created!" << endl;
       return -1;
 	}
 
-   value = pthread_create(&id3, NULL, Thread_50ms, NULL);
-   pthread_setname_np(id3, "Thread_50ms");
+   value = pthread_create(&id3, NULL, Thread_action, NULL);
+   pthread_setname_np(id3, "Thread_action");
 	if(value){
-      cout << "  Thread_50ms is not created!" << endl;
+      cout << "  Thread_action is not created!" << endl;
       return -1;
 	}
 
-   pthread_join(id1, &reVal);
+   value = pthread_create(&id4, NULL, Thread_adc, (void *)fd);
+   pthread_setname_np(id4, "Thread_adc");
+	if(value){
+      cout << "  Thread_adc is not created!" << endl;
+      return -1;
+	}
+
+   pthread_join(id1, &reVa1);
    pthread_join(id2, &reVa2);
    pthread_join(id3, &reVa3);
+   pthread_join(id4, &reVa4);
    
-   cout << "\n  Thread_5ms exiting with status :" << reVal << "\n" << endl;
-   cout << "  File_thread exiting with status :" << reVa2 << "\n" << endl;
-   cout << "  Thread_50ms exiting with status :" << reVa3 << "\n" << endl;
+   cout << "  Thread_adc exiting with status :" << reVa1 << "\n" << endl;
+   cout << "  Thread_imu exiting with status :" << reVa2 << "\n" << endl;
+   cout << "  Thread_file exiting with status :" << reVa3 << "\n" << endl;
+   cout << "  Thread_action exiting with status :" << reVa4 << "\n" << endl;
    return 0;
 }
 
@@ -250,23 +261,49 @@ double T_end()
 }
 
 
-void* Thread_5ms(void* arg)
+
+void* Thread_adc(void* arg)
 {
-   
-   while(1){ // update imu
-      if(file_state ==0)pthread_exit(NULL); //exit the thread
-      pthread_mutex_lock(&mutex_PT);
-      ms_update();
-      pthread_mutex_unlock(&mutex_PT);
-		// printf("time = %2.1f\tyaw = %2.1f\tpitch = %2.1f\troll = %2.1f\tdyaw = %2.1f\tdpitch = %2.1f\tdroll = %2.1f\n",
-		// cur_time, ypr[YAW], ypr[PITCH], ypr[ROLL], gyro[YAW], gyro[PITCH], gyro[ROLL]);
+
+   // for(int i = 0; i < 500; i++){
+   //    adc0 = ads.readADC_SingleEnded(0);  // 10ms time consumed
+   //    error += (-(ads.computeVolts(adc0) - 2.0) / 2.0 * 5000.0);
+   //    // error += ads.computeVolts(adc0);
+   // }
+   // error = error / 500;
+   // printf("adc error = %.2f\n", error);
+
+   while(1){
+      if(file_state == 0)pthread_exit(NULL); //exit the thread
       
-		sleep(0.005);
+      // 0~4V  -5000 rpm~5000 rpm
+      adc0 = ads.readADC_SingleEnded(0);  // 10ms time consumed
+      volts0 = ads.computeVolts(adc0);
+
+      pthread_mutex_lock(&mutex_PT);
+      dtheta_w = ((volts0 - 2.0) / 2.0 * 5000.0 * 6) + error; // degrees / s
+      pthread_mutex_unlock(&mutex_PT);
+
    }
-        
 }
 
-void* File_thread(void* arg)
+void* Thread_imu(void* arg)
+{
+
+   while(1){
+      if(file_state == 0)pthread_exit(NULL); //exit the thread
+      
+      ms_update(); // 5ms update
+      pthread_mutex_lock(&mutex_PT);
+      theta_b = ypr[ROLL];
+      dtheta_b = gyro[ROLL];
+      pthread_mutex_unlock(&mutex_PT);
+      // printf("\rroll = %.2f\tdroll = %.2f\tdwheel = %.2f", ypr[ROLL], gyro[ROLL], dtheta_w);
+      // fflush(stdout); 
+   }
+}
+
+void* Thread_file(void* arg)
 {
    FILE *fp = (FILE*)arg;
    char i = 0;
@@ -295,7 +332,7 @@ void* File_thread(void* arg)
    }
 }
 
-void* Thread_50ms(void* arg)
+void* Thread_action(void* arg)
 {
    
    // create input tensor memory
@@ -318,16 +355,9 @@ void* Thread_50ms(void* arg)
       return NULL;
    }
 
+   T_start();
    while(1){
-      // 0~4V  -5000 rpm~5000 rpm
-      adc0 = ads.readADC_SingleEnded(0);
-      volts0 = ads.computeVolts(adc0);
-      pthread_mutex_lock(&mutex_PT);
-      dtheta_w = (volts0 - 2) / 2 * 5000 * 6; // degrees / s 
-      pthread_mutex_unlock(&mutex_PT);
 
-      theta_b = ypr[ROLL];
-      dtheta_b = gyro[ROLL];
       input_data[0][0] = theta_b * M_PI / 180.0;
       input_data[0][1] = dtheta_b * M_PI / 180.0;
       input_data[0][2] = dtheta_w * M_PI / 180.0;
@@ -340,9 +370,9 @@ void* Thread_50ms(void* arg)
       memcpy(input_mems->virt_addr, input_data, sizeof(input_data));
 
       // Run
-      int64_t start_us = getCurrentTimeUs();
+      // int64_t start_us = getCurrentTimeUs();
       ret = rknn_run(ctx, NULL);
-      int64_t elapse_us = getCurrentTimeUs() - start_us;
+      // int64_t elapse_us = getCurrentTimeUs() - start_us;
       if (ret < 0){
          printf("rknn run error %d\n", ret);
          return NULL;
@@ -352,14 +382,16 @@ void* Thread_50ms(void* arg)
       // print the result
       float *buffer = (float *)(output_mems->virt_addr);
       output_index = max_element(buffer,buffer+3) - buffer;
+      printf("\rroll = %.2f\tdroll = %.2f\tdwheel = %.2f   output_index= %d", ypr[ROLL], gyro[ROLL], dtheta_w, output_index);
+      fflush(stdout); 
 
-      for (int i = 0; i < state_col; i++){
-         cout << input_data[0][i] << endl;
-      }
-      for (int i = 0; i < act_dim; i++){
-         cout << buffer[i] << endl;
-      }
-      cout << output_index << endl;
+      // for (int i = 0; i < state_col; i++){
+      //    cout << input_data[0][i] << endl;
+      // }
+      // for (int i = 0; i < act_dim; i++){
+      //    cout << buffer[i] << endl;
+      // }
+      // cout << output_index << endl;
 
       if(file_state == 0){
          // Destroy rknn memory
@@ -372,7 +404,7 @@ void* Thread_50ms(void* arg)
       }
 
       pthread_mutex_lock(&mutex_PT);
-      time_matrix[matrix_index] = cur_time;
+      time_matrix[matrix_index] = T_end();
       theta_b_matrix[matrix_index] = theta_b;
       dtheta_b_matrix[matrix_index] = dtheta_b;
       dtheta_w_matrix[matrix_index] = dtheta_w;
@@ -386,19 +418,18 @@ void* Thread_50ms(void* arg)
 
       switch(output_index){
          case 0:
-            Maxon_PWM = 2180;
+            Maxon_PWM = -2180;
             break;
          case 1:
             Maxon_PWM = 0;
             break;
          case 2:
-            Maxon_PWM = -2180;   
+            Maxon_PWM = 2180;   
             break;
          default:
             break;
       }
       
-      // if(abs(theta_b)<2.5)Maxon_PWM=0;
       // Maxon_PWM = 2180; //max pwm
       if(Maxon_PWM > 0){
          digitalWrite(DIR_Pin,LOW);
@@ -409,8 +440,9 @@ void* Thread_50ms(void* arg)
          Maxon_PWM = Maxon_PWM * 0.8 - 240;
       }
       if(key_value == 1)
-         Maxon_PWM = 240;
-      pwmWrite(PWM_Pin,abs(Maxon_PWM));
-      sleep(0.05);
+         Maxon_PWM = 0;
+
+      pwmWrite(PWM_Pin,abs(Maxon_PWM));  // 5ms time consumed
+      // sleep(0.015);
    }
 }

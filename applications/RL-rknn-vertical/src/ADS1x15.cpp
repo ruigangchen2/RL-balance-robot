@@ -49,8 +49,8 @@ ADS1015::ADS1015() {
 /**************************************************************************/
 ADS1115::ADS1115() {
   m_bitShift = 0;
-  m_gain = GAIN_TWOTHIRDS; /* +/- 6.144V range (limited to VDD +0.3V max!) */
-  m_dataRate = RATE_ADS1115_128SPS;
+  m_gain = GAIN_ONE; /* +/- 4.096V range (limited to VDD +0.3V max!) */
+  m_dataRate = RATE_ADS1115_475SPS;
 }
 
 /**************************************************************************/
