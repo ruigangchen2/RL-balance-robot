@@ -27,30 +27,19 @@ C_w = 0.126e-4
 g = 9.81
 
 gamma = 0.95  # 折扣因子
-dt = 0.02  # 执行间隔
+dt = 0.001  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(2)  # 2°的误差
-
-
-# episode and training parameters
-episode = 120  # 总迭代数
-critic_training_times = 20  # 每个集合内critic用多少次经验训练
-critic_training_steps = 50  # critic每次训练多少步
-actor_training_times = 100  # 每个集合内actor用多少次经验训练
-playing_times = 1000  # 每个集合内收集多少轮数据
-concentrated_sample_times = 15  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
-batch_size = 5000  # 训练的时候，你是从学习经验池里面收集多少步用来训练
-reward_scale = 5  # 奖励尺度
-policy_entropy_coefficient = 0.005  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
+settle = np.deg2rad(5)  # 5°的误差
 
 # Terminate conditions
 speed_rangeb = 2
-speed_rangew = 30
+speed_rangew = 500
 theta_nondim = 20 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
+
 
 class PendulumEnv:
     def __init__(self):
@@ -62,18 +51,18 @@ class PendulumEnv:
 
     def step(self, act_index):
         action = actions[act_index]
-        ddthtbs = ((m_b * l_b + m_w * l_w) * g * np.sin(self.state[0]) - action + C_w * self.state[2] - C_b *self.state[1]) / (I_b + m_w * l_w ** 2)
+        ddthtbs = ((m_b * l_b + m_w * l_w) * g * np.sin(self.state[0]) - action + C_w * self.state[2] - C_b * self.state[1]) / (I_b + m_w * l_w ** 2)
         ddthtws = ((I_b + I_w + m_w * l_w ** 2) * (action - C_w * self.state[2]) / (I_w * (I_b + m_w * l_w ** 2))) + ((C_b * self.state[1] - (m_b * l_b + m_w * l_w) * g * np.sin(self.state[0])) / (I_b + m_w * l_w ** 2))
         self.state[1] += ddthtbs * dt
         self.state[0] += self.state[1] * dt
         self.state[2] += ddthtws * dt
         self.steps += 1
-        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle * 10:  # and abs(
-            self.reward = reward_scale
+        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle * 10:
+            self.reward = 5  # 如果达到了目标，那么奖励5
             success.append(1)
             self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.3 or self.steps > 50:
-            self.reward = -reward_scale
+        elif abs(self.state[0]) > theta_nondim * 1.2 and abs(self.steps) > 50:
+            self.reward = -5 * 5  # 施加惩罚
             self.over = True
         else:
             self.reward = 0
@@ -85,7 +74,7 @@ class PendulumEnv:
         return self.next_state, self.reward, self.over
 
     def reset(self):
-        thtb = np.deg2rad(np.random.uniform(-theta_nondim * 180 /np.pi, theta_nondim * 180 /np.pi))
+        thtb = np.deg2rad(np.random.uniform(-theta_nondim * 180 / np.pi, theta_nondim * 180 / np.pi))
         dthtb = np.random.uniform(-speed_rangeb, speed_rangeb)
         dthtw = np.random.uniform(-speed_rangew, speed_rangew)
         self.state = np.array([thtb, dthtb, dthtw])
@@ -106,9 +95,9 @@ count = 0
 frames = []
 success = []
 y = np.zeros(4)
-y[0] = 19 * np.pi / 180
-y[1] = 0
-y[2] = 0
+y[0] = 6.2 * np.pi / 180
+y[1] = -28.22 * np.pi / 180
+y[2] = 8878.13 * np.pi / 180
 over = False
 state = env.reset()
 state[0] = y[0]
@@ -135,7 +124,6 @@ while not over:
     plt.ylabel('Y [m]')
     plt.ylim([-0.12, 0.35])
     plt.xlim([-0.45, 0.45])
-    # plt.tight_layout()
     plt.plot([-0.33, 0.33], [0, 0], 'k--')
 
     plt.plot([0, l1 * np.sin(next_state[0])], [0, l1 * np.cos(next_state[0])], "m-")
@@ -155,15 +143,15 @@ while not over:
 imageio.mimsave('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/images/example-1.gif', frames, duration=60, loop=0)
 
 
-start = 11470
-end = 11830
+start = 8850
+end = 8940
 
-data = pd.read_csv("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/analysis/experiment data/20240827.csv", low_memory=False)
+data = pd.read_csv("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/analysis/experiment data/20240828.csv", low_memory=False)
 time = np.array(data['time'].ravel())[start:end].astype('float')
 theta_b = np.array(data['theta_b'].ravel())[start:end].astype('float')
 dtheta_b = np.array(data['dtheta_b'].ravel())[start:end].astype('float')
 dtheta_w = np.array(data['dtheta_w'].ravel())[start:end].astype('float')
-action = np.array(data['action'].ravel())[start:end].astype('float')
+action_e = np.array(data['action'].ravel())[start:end].astype('float')
 time = (time - time[0])/1000
 
 
@@ -171,54 +159,45 @@ plt.figure(figsize=(6, 5), dpi=200)
 plt.xticks([])
 plt.yticks([])
 plt.axis('off')
-vertical_line_5 = [2] * (count_time + 1)
-vertical_line_5_ = [-2] * (count_time + 1)  # * np.pi / 180
+vertical_line_5 = [2]
+vertical_line_5_ = [-2]  # * np.pi / 180
 start_point = 0
 plt.subplot(4, 1, 1)
 plt.ylabel(r'$\theta$ [$^\circ$]')
-plt.xlim([0, (count_time) * dt])
-plt.plot(time, theta_b, 'r-*', label='Exp.')
+plt.xlim([0, count_time * dt])
+plt.plot(time, theta_b, 'r--', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.plot(np.array(range(count_time-1)) * dt, thetas1[1:], 'b-*', label='Simu.')
-plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time - 2),
-                              vertical_line_5[start_point] - vertical_line_5_[start_point],
-                              edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
+plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time - 2), vertical_line_5[start_point] - vertical_line_5_[start_point], edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
 plt.legend(ncol=2)
 plt.xticks([])
-plt.tight_layout()
+
 plt.subplot(4, 1, 2)
 plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
-plt.xlim([0, (count_time) * dt])
+plt.xlim([0, count_time * dt])
 plt.plot(time, dtheta_b, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.plot(np.array(range(count_time-1)) * dt, dthetas1[1:], 'b-*', label='Simu.')
-plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time + 1),
-                              vertical_line_5[start_point] - vertical_line_5_[start_point],
-                              edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
+plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time - 2), vertical_line_5[start_point] - vertical_line_5_[start_point], edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
 plt.legend(ncol=2)
 plt.xticks([])
-plt.tight_layout()
-
 
 plt.subplot(4, 1, 3)
 plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
-plt.xlim([0, (count_time) * dt])
+plt.xlim([0, count_time * dt])
 plt.plot(time, dtheta_w, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.plot(np.array(range(count_time-1)) * dt, dthetas2[1:], 'b-*', label='Simu.')
-plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time + 1),
-                              vertical_line_5[start_point] - vertical_line_5_[start_point],
-                              edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
+plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time + 1), vertical_line_5[start_point] - vertical_line_5_[start_point], edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
 plt.legend(ncol=2)
 plt.xticks([])
-plt.tight_layout()
 
 plt.subplot(4, 1, 4)
 plt.xlabel('Time [s]')
 plt.ylabel(r'$\tau$  [Nm]')
 plt.ylim([-1.2, 1.2])
-plt.xlim([0, (count_time) * dt])
-plt.plot(time, action, 'r-*', label='Exp.')
+plt.xlim([0, count_time * dt])
+plt.plot(time, action_e, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.step(np.array(range(count_time)) * dt, np.array(actions_1)/0.07, 'b-*', label='Simu.')
 plt.yticks([-1, 0, 1], ["-0.07", "0", "0.07"])
