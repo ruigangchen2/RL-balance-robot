@@ -25,22 +25,22 @@ C_w = 0.126e-4
 g = 9.81
 
 gamma = 0.95  # 折扣因子
-dt = 0.05  # 执行间隔
+dt = 0.02  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(10)  # 2°的误差
+settle = np.deg2rad(5)  # 5°的误差
 
 
 # Terminate conditions
-speed_rangeb = 4
-speed_rangew = 700
+speed_rangeb = 3
+speed_rangew = 500
 theta_nondim = 20 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
 
 
-simu_time = 1.2  # 总的仿真时间长度，除以dt是进行了多少步
+simu_time = 1  # 总的仿真时间长度，除以dt是进行了多少步
 success = []
 steps = int(simu_time / dt)
 
@@ -50,7 +50,7 @@ nnn = 512
 policy1 = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                               torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                               torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
-policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/training/outputs/PPO_vertical_dthetaw_limitation_3.pth'))
+policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/training/outputs/PPO_vertical_dthetaw_limitation_4.pth'))
 policy1.to('cpu')
 
 N1 = 40   # tehta_b

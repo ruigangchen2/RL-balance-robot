@@ -27,9 +27,9 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
 model.load_state_dict(
-    torch.load('./outputs/PPO_vertical_critic_dthetaw_limitation_2.pth'))
+    torch.load('./outputs/PPO_vertical_critic_dthetaw_limitation_3.pth'))
 policy.load_state_dict(
-    torch.load('./outputs/PPO_vertical_dthetaw_limitation_2.pth'))
+    torch.load('./outputs/PPO_vertical_dthetaw_limitation_3.pth'))
 
 model.to(device)
 policy.to(device)
@@ -51,10 +51,10 @@ g = 9.81
 
 
 gamma = 0.95  # 折扣因子
-dt = 0.05  # 执行间隔
+dt = 0.02  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(10)  # 10°的误差
+settle = np.deg2rad(5)  # 5°的误差
 
 # episode and training parameters
 episode = 120  # 总迭代数
