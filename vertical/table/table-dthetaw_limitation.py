@@ -28,11 +28,12 @@ gamma = 0.95  # 折扣因子
 dt = 0.02  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(5)  # 5°的误差
-
+settle_tb = np.deg2rad(2)  # 2°的误差
+settle_dtb = np.deg2rad(2)  # 2°的误差
+settle_dtw = np.deg2rad(5)  # 5°的误差
 
 # Terminate conditions
-speed_rangeb = 3
+speed_rangeb = 4
 speed_rangew = 500
 theta_nondim = 20 * np.pi / 180
 thtb_target = 0
@@ -40,7 +41,7 @@ dthtb_target = 0
 dthtw_target = 0
 
 
-simu_time = 1  # 总的仿真时间长度，除以dt是进行了多少步
+simu_time = 1.2  # 总的仿真时间长度，除以dt是进行了多少步
 success = []
 steps = int(simu_time / dt)
 
@@ -50,12 +51,12 @@ nnn = 512
 policy1 = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                               torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                               torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
-policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/training/outputs/PPO_vertical_dthetaw_limitation_4.pth'))
-policy1.to('cpu')
+policy1.load_state_dict(torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/training/outputs/PPO_vertical_dthetaw_limitation_5.pth'))
+policy1.to(device)
 
 N1 = 40   # tehta_b
 N2 = 50   # dtehta_b
-N3 = 500  # dtehta_w
+N3 = 400  # dtehta_w
 
 
 N = N1
@@ -73,7 +74,8 @@ for i_ in tqdm(range(N1)):
             con = 0
             a_save = 0
             for step in range(steps):
-                if abs(y[0] - thtb_target) < settle and abs(y[1] - dthtb_target) < settle * 10:
+
+                if abs(y[0] - thtb_target) < settle_tb and abs(y[1] - dthtb_target) < settle_dtb * 20: # and abs(y[2] - dthtb_target) < settle_dtw * 50:
                     flag += 1
                     working_save[i_, j, k] = a_save
                     break
@@ -94,7 +96,7 @@ for i_ in tqdm(range(N1)):
                     con += 1
                 if abs(y[0]) > theta_nondim * 1.2:
                     break
-                if abs(y[0] - thtb_target) < settle and abs(y[1] - np.deg2rad(dthtb_target)) < settle * 10:
+                if abs(y[0] - thtb_target) < settle_tb and abs(y[1] - dthtb_target) < settle_dtb * 20:#and abs(y[2] - dthtb_target) < settle_dtw * 50:
                     flag += 1
                     working_save[i_, j, k] = a_save
                     break
@@ -102,10 +104,10 @@ for i_ in tqdm(range(N1)):
 with h5py.File('table', 'w') as h5f:
     h5f.create_dataset('working_save', data=working_save)
 
-plt.figure(figsize=(8, 10), dpi=200)
+plt.figure(figsize=(8, 5), dpi=200)
 plt.tight_layout()
 for ii in range(len(thtab)):
-    plt.subplot(5, 8, ii+1)
+    plt.subplot(8, 5, ii+1)
     plt.title(r"$\theta_b$ = {:.1f} degree".format(thtab[ii] * 180 / np.pi), fontsize=10)
     plt.imshow(working_save[ii, :, :], cmap='jet', origin='lower', vmin=-2, vmax=1,
                extent=(float(dthtw[0]), float(dthtw[-1]), float(dthtw[0]), float(dthtw[-1])))

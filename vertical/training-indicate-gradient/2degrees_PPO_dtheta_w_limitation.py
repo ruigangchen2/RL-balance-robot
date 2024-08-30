@@ -27,9 +27,9 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
 model.load_state_dict(
-    torch.load('../training/outputs/PPO_vertical_critic_dthetaw_limitation_4.pth'))
+    torch.load('./outputs/PPO_vertical_critic_dthetaw_limitation_3.pth'))
 policy.load_state_dict(
-    torch.load('../training/outputs/PPO_vertical_dthetaw_limitation_4.pth'))
+    torch.load('./outputs/PPO_vertical_dthetaw_limitation_3.pth'))
 
 model.to(device)
 policy.to(device)
@@ -51,7 +51,7 @@ g = 9.81
 
 
 gamma = 0.95  # 折扣因子
-dt = 0.01  # 执行间隔
+dt = 0.02  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
 settle = np.deg2rad(5)  # 5°的误差
@@ -61,16 +61,16 @@ episode = 120  # 总迭代数
 critic_training_times = 20  # 每个集合内critic用多少次经验训练
 critic_training_steps = 50  # critic每次训练多少步
 actor_training_times = 100  # 每个集合内actor用多少次经验训练
-playing_times = 1000  # 每个集合内收集多少轮数据
 concentrated_sample_times = 15  # 收集数据的时候，收集整个数据中的多少步作为你的学习经验池
+playing_times = 1000  # 每个集合内收集多少轮数据
 batch_size = 5000  # 训练的时候，你是从学习经验池里面收集多少步用来训练
 reward_scale = 5  # 奖励尺度
 policy_entropy_coefficient = 0.005  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
 
 # Terminate conditions
-speed_rangeb = 3
-speed_rangew = 50
-theta_nondim = 25 * np.pi / 180
+speed_rangeb = 2
+speed_rangew = 30
+theta_nondim = 20 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
@@ -102,12 +102,7 @@ class PendulumEnv:
         else:
             self.reward = 0
             self.over = False
-
-        # indicate the gradient
-
-        # self.reward -= 0.1 * ((self.state[0] * np.pi / 180)**2 + (self.state[1] * np.pi / 180)**2 + (self.state[2] * np.pi / 180)**2)
-
-        ########################
+        self.reward -= (abs(self.steps) * 0.1 + abs(action) * 5)
 
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)

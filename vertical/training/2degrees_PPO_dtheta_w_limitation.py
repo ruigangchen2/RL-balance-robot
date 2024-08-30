@@ -27,9 +27,9 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
 model.load_state_dict(
-    torch.load('./outputs/PPO_vertical_critic_dthetaw_limitation_3.pth'))
+    torch.load('./outputs/PPO_vertical_critic_dthetaw_limitation_4.pth'))
 policy.load_state_dict(
-    torch.load('./outputs/PPO_vertical_dthetaw_limitation_3.pth'))
+    torch.load('./outputs/PPO_vertical_dthetaw_limitation_4.pth'))
 
 model.to(device)
 policy.to(device)
@@ -51,10 +51,12 @@ g = 9.81
 
 
 gamma = 0.95  # 折扣因子
-dt = 0.02  # 执行间隔
+dt = 0.01  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(5)  # 5°的误差
+settle_tb = np.deg2rad(2)  # 2°的误差
+settle_dtb = np.deg2rad(2)  # 2°的误差
+settle_dtw = np.deg2rad(5)  # 5°的误差
 
 # episode and training parameters
 episode = 120  # 总迭代数
@@ -92,7 +94,7 @@ class PendulumEnv:
         self.state[0] += self.state[1] * dt
         self.state[2] += ddthtws * dt
         self.steps += 1
-        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle * 10 and abs(self.state[2] - dthtb_target) < settle * 100:
+        if abs(self.state[0] - thtb_target) < settle_tb and abs(self.state[1] - dthtb_target) < settle_dtb * 20 and abs(self.state[2] - dthtb_target) < settle_dtw * 50:
             self.reward = reward_scale  # 如果达到了目标，那么奖励5
             success.append(1)
             self.over = True
