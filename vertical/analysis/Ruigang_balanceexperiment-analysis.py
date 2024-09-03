@@ -1,9 +1,9 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib.pyplot as plt
 
-start = 6000
-end = 19000
+start = 14000
+end = 16000
 
 data = pd.read_csv("./experiment data/20240831.csv", low_memory=False)
 time = np.array(data['time'].ravel())[start:end].astype('float')
@@ -13,37 +13,30 @@ dtheta_w = np.array(data['dtheta_w'].ravel())[start:end].astype('float')
 action = np.array(data['action'].ravel())[start:end].astype('float')
 time = (time - time[0]) / 1000
 
-plt.figure(figsize=(8, 6), dpi=100)
+plt.figure(figsize=(4, 6))
 plt.subplot(4, 1, 1)
-plt.plot(time, theta_b, 'r', label='Exp.')
-plt.plot(time, [0] * len(time), 'k--', label='Targ.')
-plt.legend(ncol=2)
+plt.plot(time, theta_b, 'b')
+plt.plot(time, [0] * len(time), 'k--')
+plt.plot(time, [-5] * len(time), 'k--')
 plt.xticks([])
 plt.ylabel(r'$\theta$ [$^\circ$]')
-
 plt.subplot(4, 1, 2)
-plt.plot(time, dtheta_b, 'r', label='Exp.')
-plt.plot(time, [0] * len(time), 'k--', label='Targ.')
-plt.legend(ncol=2)
+plt.plot(time, dtheta_b, 'b')
+plt.plot(time, [0] * len(time), 'k--')
 plt.xticks([])
-plt.ylabel(r'$\dot{\theta_b}$  [$^\circ$/s]')
-
+plt.ylabel(r'$\dot{\theta}_b$  [$^\circ$/s]')
 plt.subplot(4, 1, 3)
-plt.plot(time, dtheta_w, 'r', label='Exp.')
-plt.plot(time, [0] * len(time), 'k--', label='Targ.')
-plt.legend(ncol=2)
+plt.plot(time, dtheta_w, 'b')
+plt.plot(time, [0] * len(time), 'k--')
 plt.xticks([])
-plt.ylabel(r'$\dot{\theta_w}$  [$^\circ$/s]')
-
+plt.ylabel(r'$\dot{\theta}_w$  [$^\circ$/s]')
 plt.subplot(4, 1, 4)
 plt.ylim([-1.2, 1.2])
-plt.plot(time, action, 'r', label='Exp.')
-plt.plot(time, [0] * len(time), 'k--', label='Targ.')
+plt.plot(time, action, 'b')
+plt.plot(time, [0] * len(time), 'k--')
 plt.yticks([-1, 0, 1], ["-0.07", "0", "0.07"])
-plt.legend(ncol=2)
 plt.xlabel('Time [s]')
 plt.ylabel(r'$\tau$  [Nm]')
-
 plt.tight_layout()
-plt.savefig("figure.svg")
+plt.savefig("temp.pdf")
 plt.show()

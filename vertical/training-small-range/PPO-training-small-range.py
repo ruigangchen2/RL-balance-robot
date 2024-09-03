@@ -27,9 +27,10 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),  # �
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))  # 计算每个动作的概率
 model.load_state_dict(
-    torch.load('./outputs/PPO_vertical_critic_dthetaw_limitation_3.pth'))
+    torch.load('outputs/PPO_vertical_critic_small_range.pth'))
 policy.load_state_dict(
-    torch.load('./outputs/PPO_vertical_dthetaw_limitation_3.pth'))
+    torch.load('outputs/PPO_vertical_small_range.pth'))
+
 
 model.to(device)
 policy.to(device)
@@ -51,10 +52,13 @@ g = 9.81
 
 
 gamma = 0.95  # 折扣因子
-dt = 0.02  # 执行间隔
-torque = 0.07  # 力矩
+dt = 0.01  # 执行间隔
+torque = 0.02  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(5)  # 5°的误差
+settle_tb = np.deg2rad(1)  # 1°的误差
+settle_dtb = np.deg2rad(2)  # 2°的误差
+settle_dtw = np.deg2rad(5)  # 5°的误差
+
 
 # episode and training parameters
 episode = 120  # 总迭代数
@@ -68,9 +72,9 @@ reward_scale = 5  # 奖励尺度
 policy_entropy_coefficient = 0.005  # 熵值函数。简单来说就是让学习更稳定一点，值越大熵越高学习就越喜欢探索
 
 # Terminate conditions
-speed_rangeb = 2
-speed_rangew = 30
-theta_nondim = 20 * np.pi / 180
+speed_rangeb = 1
+speed_rangew = 15
+theta_nondim = 5 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
@@ -92,17 +96,20 @@ class PendulumEnv:
         self.state[0] += self.state[1] * dt
         self.state[2] += ddthtws * dt
         self.steps += 1
-        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle * 10 and abs(self.state[2] - dthtb_target) < settle * 100:
+        if abs(self.state[0] - thtb_target) < settle_tb and abs(self.state[1] - dthtb_target) < settle_dtb * 10 and abs(self.state[2] - dthtb_target) < settle_dtw * 20:
             self.reward = reward_scale  # 如果达到了目标，那么奖励5
             success.append(1)
             self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.2 and abs(self.steps) > 70:
+        elif abs(self.state[0]) > theta_nondim * 1.2 and abs(self.steps) > 50:
             self.reward = -reward_scale * 5  # 施加惩罚
             self.over = True
         else:
             self.reward = 0
             self.over = False
         self.reward -= (abs(self.steps) * 0.1 + abs(action) * 5)
+        # self.reward -= (abs(self.steps) * 0.1 )
+
+
 
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
@@ -185,15 +192,15 @@ for epoch in range(episode):
         ini_a = len(success)
         if ini_a >= ini_b:
             if os.path.exists(
-                    f'./outputs/PPO_vertical_dthetaw_limitation{ini_b}.pth'):
-                os.remove(f'./outputs/PPO_vertical_dthetaw_limitation{ini_b}.pth')
+                    f'./outputs/PPO_vertical_small_range{ini_b}.pth'):
+                os.remove(f'./outputs/PPO_vertical_small_range{ini_b}.pth')
             if os.path.exists(
-                    f'./outputs/PPO_vertical_critic_dthetaw_limitation{ini_b}.pth'):
-                os.remove(f'./outputs/PPO_vertical_critic_dthetaw_limitation{ini_b}.pth')
+                    f'./outputs/PPO_vertical_critic_small_range{ini_b}.pth'):
+                os.remove(f'./outputs/PPO_vertical_critic_small_range{ini_b}.pth')
             torch.save(policy.state_dict(),
-                       f'./outputs/PPO_vertical_dthetaw_limitation{ini_a}.pth')
+                       f'./outputs/PPO_vertical_small_range{ini_a}.pth')
             torch.save(model.state_dict(),
-                       f'./outputs/PPO_vertical_critic_dthetaw_limitation{ini_a}.pth')
+                       f'./outputs/PPO_vertical_critic_small_range{ini_a}.pth')
             ini_b = ini_a
 
     for ii in range(critic_training_times):
@@ -243,5 +250,5 @@ for epoch in range(episode):
         loss.backward()  # 反向传播
         optimizer_policy.step()  # 梯度更新
         optimizer_policy.zero_grad()  # 梯度清零
-    torch.save(policy.state_dict(), f'./outputs/PPO_vertical_dthetaw_limitation.pth')
-    torch.save(model.state_dict(), f'./outputs/PPO_vertical_critic_dthetaw_limitation.pth')
+    torch.save(policy.state_dict(), f'outputs/PPO_vertical_small_range.pth')
+    torch.save(model.state_dict(), f'outputs/PPO_vertical_critic_small_range.pth')
