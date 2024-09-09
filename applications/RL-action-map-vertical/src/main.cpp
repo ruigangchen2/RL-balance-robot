@@ -115,7 +115,7 @@ int state3_pre = 0;
 std::vector<double> RL_theta_b = create_linspace(-20, 20, 40); // -20 degrees to 20 degrees
 std::vector<double> RL_dtheta_b = create_linspace(RadiansToDegrees(-2), RadiansToDegrees(2), 50);
 std::vector<double> RL_dtheta_w = create_linspace(RadiansToDegrees(-500), RadiansToDegrees(500), 500);
-const std::string filename = "table/action-table-precise";
+const std::string filename = "table/action-table-2degrees";
 const std::string datasetname = "working_save";
 auto dataAndDims = readData(filename, datasetname);
 std::vector<double> table_data = dataAndDims.first;
@@ -293,28 +293,6 @@ double T_end()
     TimeUse /= 1000;  //the result is in the ms dimension
     return TimeUse;
 }
-
-
-void* Thread_imu(void* arg)
-{
-    gettimeofday(&StartIMU, NULL);  //measure the time
-    while(1){
-        if(file_state == 0)pthread_exit(NULL); //exit the thread
-        
-        
-        ms_update(); // 5ms update
-        gettimeofday(&EndIMU, NULL);   //measurement ends
-        TimeIMU = 1000000*(EndIMU.tv_sec-StartIMU.tv_sec)+EndIMU.tv_usec-StartIMU.tv_usec;
-        TimeIMU /= 1000000;
-        gettimeofday(&StartIMU, NULL);  //measure the time
-        
-        pthread_mutex_lock(&mutex_PT);
-        theta_b = ypr[ROLL];
-        dtheta_b = (theta_b - pre_theta_b)/TimeIMU;
-        pre_theta_b = theta_b;
-        pthread_mutex_unlock(&mutex_PT);
-    }
-}
     
 
 void* Thread_file(void* arg)
@@ -348,21 +326,43 @@ void* Thread_file(void* arg)
 
 
 
+void* Thread_imu(void* arg)
+{
+    gettimeofday(&StartIMU, NULL);  //measure the time
+    while(1){
+        if(file_state == 0)pthread_exit(NULL); //exit the thread
+        
+
+        ms_update(); // 5ms update
+        gettimeofday(&EndIMU, NULL);   //measurement ends
+        TimeIMU = 1000000*(EndIMU.tv_sec-StartIMU.tv_sec)+EndIMU.tv_usec-StartIMU.tv_usec;
+        TimeIMU /= 1000000;
+        gettimeofday(&StartIMU, NULL);  //measure the time
+        
+        pthread_mutex_lock(&mutex_PT);
+        theta_b = ypr[ROLL];
+        dtheta_b = (theta_b - pre_theta_b)/TimeIMU;
+        pre_theta_b = theta_b;
+        pthread_mutex_unlock(&mutex_PT);
+        
+    }
+}
+
 void* Thread_adc(void* arg)
 {
 
-   while(1){
-      if(file_state == 0)pthread_exit(NULL); //exit the thread
-      
-      // 0~4V  -5000 rpm~5000 rpm
-      adc0 = ads.readADC_SingleEnded(0);  // 10ms time consumed
-      volts0 = ads.computeVolts(adc0);
+    while(1){
+        if(file_state == 0)pthread_exit(NULL); //exit the thread
 
-      pthread_mutex_lock(&mutex_PT);
-      dtheta_w = ((volts0 - 2.0) / 2.0 * 5000.0 * 6); // degrees / s
-      pthread_mutex_unlock(&mutex_PT);
+        // 0~4V  -5000 rpm~5000 rpm
+        adc0 = ads.readADC_SingleEnded(0);  // 10ms time consumed
+        volts0 = ads.computeVolts(adc0);
 
-   }
+        pthread_mutex_lock(&mutex_PT);
+        dtheta_w = ((volts0 - 2.0) / 2.0 * 5000.0 * 6); // degrees / s
+        pthread_mutex_unlock(&mutex_PT);
+
+    }
 }
 
 void* Thread_action(void* arg)
@@ -372,6 +372,7 @@ void* Thread_action(void* arg)
         if(file_state == 0)pthread_exit(NULL); //exit the thread
         // 0~4V  -5000 rpm~5000 rpm
 
+        
         state1 = argmin(theta_b,RL_theta_b);
         state2 = argmin(dtheta_b,RL_dtheta_b);
         state3 = argmin(dtheta_w,RL_dtheta_w);
@@ -400,8 +401,10 @@ void* Thread_action(void* arg)
             }     
         }
 
+        
         printf("\rtheta_b: %.2f,dtheta_b: %.2f,dtheta_w:%.2f,action index:%.2f   ", theta_b, dtheta_b,dtheta_w,action);   
         fflush(stdout); 
+        
 
         pthread_mutex_lock(&mutex_PT);
         time_matrix[matrix_index] = T_end();
@@ -416,6 +419,7 @@ void* Thread_action(void* arg)
         }
         pthread_mutex_unlock(&mutex_PT);
 
+        
         usleep(1000); // 1ms
     }
 }
