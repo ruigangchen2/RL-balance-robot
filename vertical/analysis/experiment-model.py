@@ -11,11 +11,11 @@ policy = torch.nn.Sequential(torch.nn.Linear(3, nnn * 2), torch.nn.Tanh(),
                              torch.nn.Linear(nnn * 2, nnn), torch.nn.Tanh(),
                              torch.nn.Linear(nnn, 3), torch.nn.Softmax(dim=1))
 policy.load_state_dict(
-    torch.load('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/training/outputs/PPO_vertical_4.pth'))
+    torch.load('C:/Users/coty/Documents/RL-balance-robot/vertical/training/outputs/PPO_vertical_dthetaw_limitation_4.pth'))
 policy.to('cpu')
 
 
-# 系统参数
+# # 系统参数
 l_w = 0.083
 l_b = 0.062
 m_w = 0.0434
@@ -26,19 +26,24 @@ C_b = 0.27e-3
 C_w = 0.126e-4
 g = 9.81
 
+
+
 gamma = 0.95  # 折扣因子
-dt = 0.001  # 执行间隔
+dt = 0.01  # 执行间隔
 torque = 0.07  # 力矩
 actions = [-torque, 0, torque]  # action 只有三个
-settle = np.deg2rad(5)  # 5°的误差
+settle_tb = np.deg2rad(2)  # 2°的误差
+settle_dtb = np.deg2rad(2)  # 2°的误差
+settle_dtw = np.deg2rad(5)  # 5°的误差
 
 # Terminate conditions
 speed_rangeb = 2
-speed_rangew = 500
+speed_rangew = 30
 theta_nondim = 20 * np.pi / 180
 thtb_target = 0
 dthtb_target = 0
 dthtw_target = 0
+
 
 
 class PendulumEnv:
@@ -57,17 +62,17 @@ class PendulumEnv:
         self.state[0] += self.state[1] * dt
         self.state[2] += ddthtws * dt
         self.steps += 1
-        if abs(self.state[0] - thtb_target) < settle and abs(self.state[1] - dthtb_target) < settle * 10:
+        if abs(self.state[0] - thtb_target) < settle_tb and abs(self.state[1] - dthtb_target) < settle_dtb * 20 and abs(self.state[2] - dthtb_target) < settle_dtw * 50:
             self.reward = 5  # 如果达到了目标，那么奖励5
             success.append(1)
             self.over = True
-        elif abs(self.state[0]) > theta_nondim * 1.2 and abs(self.steps) > 50:
+        elif abs(self.state[0]) > theta_nondim * 1.2 and abs(self.steps) > 70:
             self.reward = -5 * 5  # 施加惩罚
             self.over = True
         else:
             self.reward = 0
             self.over = False
-        self.reward -= (abs(self.steps) * 0.07)
+        self.reward -= (abs(self.steps) * 0.1 + abs(action) * 5)
         
         self.next_state = np.array([self.state[0], self.state[1], self.state[2]])
         self.state = np.copy(self.next_state)
@@ -95,9 +100,9 @@ count = 0
 frames = []
 success = []
 y = np.zeros(4)
-y[0] = 6.2 * np.pi / 180
-y[1] = -28.22 * np.pi / 180
-y[2] = 8878.13 * np.pi / 180
+y[0] = -18.7 * np.pi / 180
+y[1] = 0 * np.pi / 180
+y[2] = 0 * np.pi / 180
 over = False
 state = env.reset()
 state[0] = y[0]
@@ -134,19 +139,20 @@ while not over:
     plt.show()
     plt.pause(1e-5)
     state = np.copy(next_state)
-    plt.savefig(f'C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/images/img_{count}.png', transparent=False,
+    plt.savefig(f'C:/Users/coty/Documents/RL-balance-robot/vertical/images/img_{count}.png', transparent=False,
                 facecolor='white')
-    image = imageio.v2.imread(f'C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/images/img_{count}.png')
+    image = imageio.v2.imread(f'C:/Users/coty/Documents/RL-balance-robot/vertical/images/img_{count}.png')
     count += 1
     count_time += 1
     frames.append(image)
-imageio.mimsave('C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/images/example-1.gif', frames, duration=60, loop=0)
+imageio.mimsave('C:/Users/coty/Documents/RL-balance-robot/vertical/images/example-1.gif', frames, duration=60, loop=0)
 
 
-start = 8850
-end = 8940
 
-data = pd.read_csv("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/analysis/experiment data/20240828.csv", low_memory=False)
+start = 2851
+end = 2884
+
+data = pd.read_csv("C:/Users/coty/Documents/RL-balance-robot/vertical/analysis/experiment data/20240913-1.csv", low_memory=False)
 time = np.array(data['time'].ravel())[start:end].astype('float')
 theta_b = np.array(data['theta_b'].ravel())[start:end].astype('float')
 dtheta_b = np.array(data['dtheta_b'].ravel())[start:end].astype('float')
@@ -154,8 +160,7 @@ dtheta_w = np.array(data['dtheta_w'].ravel())[start:end].astype('float')
 action_e = np.array(data['action'].ravel())[start:end].astype('float')
 time = (time - time[0])/1000
 
-
-plt.figure(figsize=(6, 5), dpi=200)
+plt.figure(figsize=(6, 5),dpi=300)
 plt.xticks([])
 plt.yticks([])
 plt.axis('off')
@@ -163,9 +168,10 @@ vertical_line_5 = [2]
 vertical_line_5_ = [-2]  # * np.pi / 180
 start_point = 0
 plt.subplot(4, 1, 1)
-plt.ylabel(r'$\theta$ [$^\circ$]')
-plt.xlim([0, count_time * dt])
-plt.plot(time, theta_b, 'r--', label='Exp.')
+plt.ylabel(r'$\theta_b$ [$^\circ$]')
+# plt.xlim([0, count_time * dt])
+plt.xlim([0, 0.14])
+plt.plot(time[:-5], theta_b[5:], 'r--', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.plot(np.array(range(count_time-1)) * dt, thetas1[1:], 'b-*', label='Simu.')
 plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time - 2), vertical_line_5[start_point] - vertical_line_5_[start_point], edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
@@ -173,9 +179,10 @@ plt.legend(ncol=2)
 plt.xticks([])
 
 plt.subplot(4, 1, 2)
-plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
-plt.xlim([0, count_time * dt])
-plt.plot(time, dtheta_b, 'r-*', label='Exp.')
+plt.ylabel(r'$\dot\theta_b$  [$^\circ$/s]')
+# plt.xlim([0, count_time * dt])
+plt.xlim([0, 0.14])
+plt.plot(time[:-5], dtheta_b[5:], 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.plot(np.array(range(count_time-1)) * dt, dthetas1[1:], 'b-*', label='Simu.')
 plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time - 2), vertical_line_5[start_point] - vertical_line_5_[start_point], edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
@@ -183,9 +190,10 @@ plt.legend(ncol=2)
 plt.xticks([])
 
 plt.subplot(4, 1, 3)
-plt.ylabel(r'$\dot{\theta}$  [$^\circ$/s]')
-plt.xlim([0, count_time * dt])
-plt.plot(time, dtheta_w, 'r-*', label='Exp.')
+plt.ylabel(r'$\dot\theta_w$  [$^\circ$/s]')
+# plt.xlim([0, count_time * dt])
+plt.xlim([0, 0.14])
+plt.plot(time[:-5], dtheta_w[5:], 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.plot(np.array(range(count_time-1)) * dt, dthetas2[1:], 'b-*', label='Simu.')
 plt.gca().add_patch(Rectangle((0, vertical_line_5_[start_point]), dt * (count_time + 1), vertical_line_5[start_point] - vertical_line_5_[start_point], edgecolor='none', facecolor=[1, 0, 0], alpha=0.2))
@@ -196,7 +204,8 @@ plt.subplot(4, 1, 4)
 plt.xlabel('Time [s]')
 plt.ylabel(r'$\tau$  [Nm]')
 plt.ylim([-1.2, 1.2])
-plt.xlim([0, count_time * dt])
+# plt.xlim([0, count_time * dt])
+plt.xlim([0, 0.14])
 plt.plot(time, action_e, 'r-*', label='Exp.')
 plt.plot(time, [0] * len(time), 'k--')
 plt.step(np.array(range(count_time)) * dt, np.array(actions_1)/0.07, 'b-*', label='Simu.')
@@ -204,4 +213,4 @@ plt.yticks([-1, 0, 1], ["-0.07", "0", "0.07"])
 plt.legend(ncol=2)
 plt.show()
 plt.tight_layout()
-plt.savefig("C:/Users/Administrator/Desktop/Cases/RL-balance-robot/vertical/analysis/figure.svg")
+plt.savefig("C:/Users/coty/Documents/RL-balance-robot/vertical/analysis/figure.svg")
