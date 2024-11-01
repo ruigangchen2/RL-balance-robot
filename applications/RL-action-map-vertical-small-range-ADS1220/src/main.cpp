@@ -31,11 +31,11 @@ sudo cat /sys/devices/system/cpu/cpu7/cpufreq/cpuinfo_cur_freq
 #include <poll.h>
 #include <fcntl.h>
 #include <sys/time.h>
-#include <sys/types.h>
+
 #include <sys/stat.h>
 #include <sys/ioctl.h>
-
 #include <sched.h>
+#include <sys/types.h>
 #include <pthread.h>
 #include <wiringPi.h>
 
@@ -51,6 +51,7 @@ sudo cat /sys/devices/system/cpu/cpu7/cpufreq/cpuinfo_cur_freq
 using namespace std;
 using namespace H5;
 
+// #define CPU_BIND
 
 #define SPI_DEV_PATH    "/dev/spidev4.1"
 #define DRDY_PIN 13
@@ -60,10 +61,6 @@ using namespace H5;
 #define EN_Pin              7
 #define DIR_Pin             8
 pthread_mutex_t mutex_PT;  //init the pthread_mutex_t
-
-
-
-int pwm,count_pwm;
 
 
 float theta_b = 0; 
@@ -163,6 +160,15 @@ ADS1220_Parameters_t Parameters = {};
 
 int main()
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     ms_open();
     cout << "IMU init done!" << endl;
 
@@ -194,7 +200,7 @@ int main()
     
     Parameters.PGAdisable = 1;
     Parameters.InputMuxConfig = P0NAVSS;
-    Parameters.DataRate = _600_SPS_;
+    Parameters.DataRate = _1000_SPS_;
     // Parameters.FIRFilter = S50or60Hz;
     Parameters.VoltageRef = AnalogSupply;
     // Passing Parameters as NULL to use default configurations.
@@ -213,7 +219,7 @@ int main()
     pthread_t id1,id2,id3,id4;
 	int value;
     void *reVa1, *reVa2, *reVa3, *reVa4;
-
+    
     value = pthread_create(&id1, NULL, Thread_imu, NULL);
     pthread_setname_np(id1, "Thread_imu");
 	if(value){
@@ -251,6 +257,9 @@ int main()
     cout << "Thread_file exiting with status :" << reVa2 << "\n" << endl;
     cout << "Thread_action exiting with status :" << reVa3 << "\n" << endl;
     cout << "Thread_adc exiting with status :" << reVa4 << "\n" << endl;
+
+    // pthread_attr_destroy(&attr);
+
     return 0;
 }
 
@@ -259,6 +268,15 @@ int main()
 //创建一个等差数组
 std::vector<double> create_linspace(double start, double end, int N) 
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     double step = (end - start) / (N - 1);
     std::vector<double> x(N);
     for (int i = 0; i < N; ++i) {
@@ -270,6 +288,15 @@ std::vector<double> create_linspace(double start, double end, int N)
 //找到最近的索引
 int argmin(double y0, const std::vector<double>& x) 
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     auto result = std::min_element(x.begin(), x.end(), [&](double a, double b) {
         return std::abs(a - y0) < std::abs(b - y0);
     });
@@ -280,6 +307,15 @@ int argmin(double y0, const std::vector<double>& x)
 // 读取数据
 std::pair<std::vector<double>, std::vector<hsize_t>> readData(const std::string& filename, const std::string& datasetname)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     H5File file(filename, H5F_ACC_RDONLY);
     DataSet dataset = file.openDataSet(datasetname);
 
@@ -304,23 +340,59 @@ std::pair<std::vector<double>, std::vector<hsize_t>> readData(const std::string&
 // 获取数组具体的值
 double getValue(const std::vector<double>& data, const hsize_t* dims, int i, int j, int k)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     int index = k + dims[2] * (j + dims[1] * i);
     return data[index];
 }
 
 double DegreesToRadians(double degrees) 
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     return degrees * M_PI / 180.0;
 }
 
 double RadiansToDegrees(double radians) 
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     return radians * 180.0 / M_PI;
 }
 
 
 double readAndParseData(boost::asio::serial_port& serial) 
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     // 创建一个缓冲区来存储返回的数据.
     std::array<uint8_t, 128> buf;
     boost::system::error_code ec;
@@ -341,11 +413,29 @@ double readAndParseData(boost::asio::serial_port& serial)
 
 void T_start()
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     gettimeofday(&StartTime, NULL);  //measure the time
 }
 
 double T_end()
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     gettimeofday(&EndTime, NULL);   //measurement ends
     TimeUse = 1000000*(EndTime.tv_sec-StartTime.tv_sec)+EndTime.tv_usec-StartTime.tv_usec;
     TimeUse /= 1000;  //the result is in the ms dimension
@@ -355,37 +445,61 @@ double T_end()
 
 void* Thread_file(void* arg)
 {
-   FILE *fp = (FILE*)arg;
-   char i = 0;
-   while(1){
-      i = getchar();
-      if(i == 'r')
-         key_value = 0;
-      if(i == 'q'){
-         file_state = 0;
-         digitalWrite(EN_Pin,LOW); //close motor
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
 
-         pthread_mutex_lock(&mutex_PT);
-         int j = matrix_index;
-         while(matrix_index--){
-               fprintf(fp,"%.2f,%.2f,%.2f,%.2f,%.2f\n",  time_matrix[j - matrix_index],\
-                                             theta_b_matrix[j - matrix_index],\
-                                             dtheta_b_matrix[j - matrix_index],\
-                                             dtheta_w_matrix[j - matrix_index],\
-                                             action_matrix[j - matrix_index]);                        
-         }
-         cout << "Data has been saved Over!!!" << endl;
-         fclose(fp); 
-         pthread_mutex_unlock(&mutex_PT);
-         pthread_exit(NULL);
-      }
-   }
+    FILE *fp = (FILE*)arg;
+    char i = 0;
+    while(1){
+        i = getchar();
+        if(i == 'r'){
+            key_value = 0;
+            digitalWrite(EN_Pin,HIGH);
+        }
+        else if(i == 's'){
+            key_value = 1;
+            digitalWrite(EN_Pin,LOW);
+        }
+        else if(i == 'q'){
+            file_state = 0;
+            digitalWrite(EN_Pin,LOW); //close motor
+
+            pthread_mutex_lock(&mutex_PT);
+            int j = matrix_index;
+            while(matrix_index--){
+                fprintf(fp,"%.2f,%.2f,%.2f,%.2f,%.2f\n",  time_matrix[j - matrix_index],\
+                                                theta_b_matrix[j - matrix_index],\
+                                                dtheta_b_matrix[j - matrix_index],\
+                                                dtheta_w_matrix[j - matrix_index],\
+                                                action_matrix[j - matrix_index]);                        
+            }
+            cout << "Data has been saved Over!!!" << endl;
+            fclose(fp); 
+            pthread_mutex_unlock(&mutex_PT);
+            pthread_exit(NULL);
+        }
+    }
 }
 
 
 
 void* Thread_imu(void* arg)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     gettimeofday(&StartIMU, NULL);  //measure the time
     while(1){
         if(file_state == 0)pthread_exit(NULL); //exit the thread
@@ -408,6 +522,14 @@ void* Thread_imu(void* arg)
 
 void* Thread_adc(void* arg)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
 
     while(1){
         if(file_state == 0)pthread_exit(NULL); //exit the thread
@@ -438,86 +560,83 @@ void* Thread_adc(void* arg)
 
 void* Thread_action(void* arg)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     T_start();
     while(1){
         if(file_state == 0)pthread_exit(NULL); //exit the thread
         // 0~4V  -5000 rpm~5000 rpm
 
-        // if(abs(theta_b) > 5){
-        //     state1 = argmin(theta_b,RL_theta_b);
-        //     state2 = argmin(dtheta_b,RL_dtheta_b);
-        //     state3 = argmin(dtheta_w,RL_dtheta_w);
+        if(abs(theta_b) > 5){
+            state1 = argmin(theta_b,RL_theta_b);
+            state2 = argmin(dtheta_b,RL_dtheta_b);
+            state3 = argmin(dtheta_w,RL_dtheta_w);
 
-        //     if(state1 != state1_pre && state2 != state2_pre){
-        //         action = getValue(table_data, dims.data(), state1, state2, state3);
-        //         if (action == -2){
-        //             // cout<< "invalidate state"<<endl;
-        //             action = 0;
-        //         }
-        //         if (action!=action_pre){
-        //             if(action == 0 && key_value == 0){
-        //                 pwmWrite(PWM_Pin,240);
-        //                 action_pre = action;
-        //             }
-        //             else if(action == 1 && key_value == 0){
-        //                 digitalWrite(DIR_Pin,HIGH);
-        //                 pwmWrite(PWM_Pin,1984); // 90%  pwm*0.8+240  1984   0.07Nm
-        //                 action_pre = action;
-        //             }
-        //             else if(action == -1 && key_value == 0){
-        //                 digitalWrite(DIR_Pin,LOW);
-        //                 pwmWrite(PWM_Pin,1984); // 90% pwm*0.8+240  1984    0.07Nm
-        //                 action_pre = action;
-        //             }
-        //         }     
-        //     }
-        // }
-        // else if(abs(theta_b) < 5 && abs(theta_b) > 0){
-        //     state1_small_range = argmin(theta_b,RL_theta_b_small_range);
-        //     state2_small_range = argmin(dtheta_b,RL_dtheta_b_small_range);
-        //     state3_small_range = argmin(dtheta_w,RL_dtheta_w_small_range);
-
-        //     if(state1_small_range != state1_pre_small_range && state2_small_range != state2_pre_small_range){
-        //         action = getValue(table_data_small_range, dims_small_range.data(), state1_small_range, state2_small_range, state3_small_range);
-        //         if (action == -2){
-        //             // cout<< "invalidate state"<<endl;
-        //             action = 0;
-        //         }
-        //         if (action!=action_pre){
-        //             if(action == 0 && key_value == 0){
-        //                 pwmWrite(PWM_Pin,240);
-        //                 action_pre = action;
-        //             }
-        //             else if(action == 1 && key_value == 0){
-        //                 digitalWrite(DIR_Pin,HIGH);
-        //                 pwmWrite(PWM_Pin,738); // 26%  pwm*0.8+240  738   0.02Nm
-        //                 action_pre = action;
-        //             }
-        //             else if(action == -1 && key_value == 0){
-        //                 digitalWrite(DIR_Pin,LOW);
-        //                 pwmWrite(PWM_Pin,738); // 26% pwm*0.8+240  738   0.02Nm
-        //                 action_pre = action;
-        //             }
-        //         }     
-        //     }
-        // }
-        
-        count_pwm++;
-        pwm = 1200 * sin(2 * 3.1415 * count_pwm / 100);
-        if(pwm > 0 ){
-            digitalWrite(DIR_Pin,LOW);
-            pwm = pwm * 0.8 + 240;
+            if(state1 != state1_pre && state2 != state2_pre){
+                action = getValue(table_data, dims.data(), state1, state2, state3);
+                if (action == -2){
+                    // cout<< "invalidate state"<<endl;
+                    action = 0;
+                }
+                if (action!=action_pre){
+                    if(action == 0 && key_value == 0){
+                        pwmWrite(PWM_Pin,240);
+                        action_pre = action;
+                    }
+                    else if(action == 1 && key_value == 0){
+                        digitalWrite(DIR_Pin,HIGH);
+                        pwmWrite(PWM_Pin,1984); // 90%  pwm*0.8+240  1984   0.07Nm
+                        action_pre = action;
+                    }
+                    else if(action == -1 && key_value == 0){
+                        digitalWrite(DIR_Pin,LOW);
+                        pwmWrite(PWM_Pin,1984); // 90% pwm*0.8+240  1984    0.07Nm
+                        action_pre = action;
+                    }
+                }     
+            }
         }
-        else{
-            digitalWrite(DIR_Pin,HIGH);
-            pwm = pwm * 0.8 - 240;            
-        }
-        pwmWrite(PWM_Pin,abs(pwm));
+        else if(abs(theta_b) < 5 && abs(theta_b) > 0){
+            state1_small_range = argmin(theta_b,RL_theta_b_small_range);
+            state2_small_range = argmin(dtheta_b,RL_dtheta_b_small_range);
+            state3_small_range = argmin(dtheta_w,RL_dtheta_w_small_range);
 
+            if(state1_small_range != state1_pre_small_range && state2_small_range != state2_pre_small_range){
+                action = getValue(table_data_small_range, dims_small_range.data(), state1_small_range, state2_small_range, state3_small_range);
+                if (action == -2){
+                    // cout<< "invalidate state"<<endl;
+                    action = 0;
+                }
+                if (action!=action_pre){
+                    if(action == 0 && key_value == 0){
+                        pwmWrite(PWM_Pin,240);
+                        action_pre = action;
+                    }
+                    else if(action == 1 && key_value == 0){
+                        digitalWrite(DIR_Pin,HIGH);
+                        pwmWrite(PWM_Pin,738); // 26%  pwm*0.8+240  738   0.02Nm
+                        action_pre = action;
+                    }
+                    else if(action == -1 && key_value == 0){
+                        digitalWrite(DIR_Pin,LOW);
+                        pwmWrite(PWM_Pin,738); // 26% pwm*0.8+240  738   0.02Nm
+                        action_pre = action;
+                    }
+                }     
+            }
+        }
+    
         printf("\rtheta_b: %.2f | dtheta_b: %.2f | dtheta_w:%.2f | action index:%.2f   ", theta_b, dtheta_b,dtheta_w,action);   
         fflush(stdout);         
 
-        pthread_mutex_lock(&mutex_PT);
+        // pthread_mutex_lock(&mutex_PT);
         time_matrix[matrix_index] = T_end();
         theta_b_matrix[matrix_index] = theta_b;
         dtheta_b_matrix[matrix_index] = dtheta_b;
@@ -528,15 +647,24 @@ void* Thread_action(void* arg)
             cout << "\nMatrix number error!" << endl;
             return (void *)-1;
         }
-        pthread_mutex_unlock(&mutex_PT);
+        // pthread_mutex_unlock(&mutex_PT);
 
-        usleep(10000); // 1ms
+        usleep(5000); // 5ms
     }
 }
 
 
 int transfer(int fd_spi, uint8_t const *tx, uint8_t const *rx, uint32_t len)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
+
     int ret;
     struct spi_ioc_transfer tr = {
         .tx_buf = (unsigned long )tx,
@@ -612,24 +740,56 @@ int spi_init(void)
 
 void CS_UP(void)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
     // GPIO_CS_GROUP and GPIO_CS_PIN depend on your schematic.
     // HAL_GPIO_WritePin(GPIO_CS_GROUP, GPIO_CS_PIN, GPIO_PIN_SET);
     digitalWrite(CS_PIN, HIGH);
 }
 void CS_DOWN(void)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
     // GPIO_CS_GROUP and GPIO_CS_PIN depend on your schematic.
     // HAL_GPIO_WritePin(GPIO_CS_GROUP, GPIO_CS_PIN, GPIO_PIN_RESET);
     digitalWrite(CS_PIN, LOW);
 }
 void TRANSMIT(uint8_t data)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
     // SPI_DRIVER depends on your configuration.
     // HAL_SPI_Transmit (SPI_DRIVER, &data, sizeof(uint8_t), HAL_MAX_DELAY);
     transfer(fd_spi, &data, rx_buffer, sizeof(data));
 }
 uint8_t RECEIVE(void)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
     uint8_t dataR = 0;
     // SPI_DRIVER depends on your configuration.
     // HAL_SPI_Receive (SPI_DRIVER, &dataR, sizeof(uint8_t), HAL_MAX_DELAY);
@@ -638,6 +798,14 @@ uint8_t RECEIVE(void)
 }
 void DELAY(uint32_t us)
 {
+    #ifndef CPU_BIND
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(7,&mask);
+    if (sched_setaffinity(0,sizeof(mask),&mask)<0){
+        printf("affinity set fail!");
+    }
+    #endif
     // DELAY_US depends on your code.
     usleep(us);
 }
