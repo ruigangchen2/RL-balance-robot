@@ -38,18 +38,11 @@ sudo cat /sys/devices/system/cpu/cpu7/cpufreq/cpuinfo_cur_freq
 #include <sched.h>
 #include <pthread.h>
 #include <wiringPi.h>
-
-#include <boost/asio.hpp>
-#include <boost/system/error_code.hpp>
-#include <boost/interprocess/mapped_region.hpp>
-#include <boost/interprocess/sync/named_semaphore.hpp>
 #include <linux/spi/spidev.h>
-#include "H5Cpp.h"
 #include "ADS1220.h"
 #include "../imu/MotionSensor.h"
 
 using namespace std;
-using namespace H5;
 
 
 #define SPI_DEV_PATH    "/dev/spidev4.1"
@@ -61,15 +54,16 @@ using namespace H5;
 #define DIR_Pin             8
 pthread_mutex_t mutex_PT;  //init the pthread_mutex_t
 
+float theta_limit = 40.0;
 float theta_b = 0; 
 float pre_theta_b = 0; 
 float dtheta_b = 0; 
 float dtheta_w= 0; 
 
 /********** PID ***************/
-float theta_b_KP = 50;
-float theta_b_KD = 10;
-float theta_w_KD = 0.01;
+float theta_b_KP = 400;
+float theta_b_KD = 20;
+float theta_w_KD = 0.1;
 float PID_output = 0;
 char PID_flag = 0;
 
@@ -93,7 +87,6 @@ float time_matrix[matrix_number] = {0};
 float theta_b_matrix[matrix_number] = {0};
 float dtheta_b_matrix[matrix_number] = {0};
 float dtheta_w_matrix[matrix_number] = {0};
-float action_matrix[matrix_number] = {0};
 /******************************/
 
 /*********** SPI  ***********/
@@ -119,48 +112,7 @@ void* Thread_action(void* arg);
 void* Thread_adc(void* arg);
 void T_start();
 double T_end();
-double DegreesToRadians(double degrees);
-double RadiansToDegrees(double radians);
-double readAndParseData(boost::asio::serial_port& serial);
-double getValue(const std::vector<double>& data, const hsize_t* dims, int i, int j, int k);
-std::pair<std::vector<double>, std::vector<hsize_t>> readData(const std::string& filename, const std::string& datasetname);
-int argmin(double y0, const std::vector<double>& x);
-std::vector<double> create_linspace(double start, double end, int N);
 
-
-/***** RL related *****/
-float action = 0;
-float action_pre = 0;
-int state1 = 0;
-int state2 = 0;
-int state3 = 0;
-int state1_pre = 0;
-int state2_pre = 0;
-int state3_pre = 0;
-std::vector<double> RL_theta_b = create_linspace(-20, 20, 40); 
-std::vector<double> RL_dtheta_b = create_linspace(RadiansToDegrees(-2), RadiansToDegrees(2), 50);
-std::vector<double> RL_dtheta_w = create_linspace(RadiansToDegrees(-500), RadiansToDegrees(500), 500);
-const std::string filename = "table/action-table-large-range";
-const std::string datasetname = "working_save";
-auto dataAndDims = readData(filename, datasetname);
-std::vector<double> table_data = dataAndDims.first;
-std::vector<hsize_t> dims = dataAndDims.second;
-
-int state1_small_range = 0;
-int state2_small_range = 0;
-int state3_small_range = 0;
-int state1_pre_small_range = 0;
-int state2_pre_small_range = 0;
-int state3_pre_small_range = 0;
-std::vector<double> RL_theta_b_small_range = create_linspace(-5, 5, 40); 
-std::vector<double> RL_dtheta_b_small_range = create_linspace(RadiansToDegrees(-1), RadiansToDegrees(1), 50);
-std::vector<double> RL_dtheta_w_small_range = create_linspace(RadiansToDegrees(-15), RadiansToDegrees(15), 200);
-const std::string filename_small_range = "table/action-table-small-range";
-const std::string datasetname_small_range = "working_save";
-auto dataAndDims_small_range = readData(filename_small_range, datasetname_small_range);
-std::vector<double> table_data_small_range = dataAndDims_small_range.first;
-std::vector<hsize_t> dims_small_range = dataAndDims_small_range.second;
-/******************************/
 
 ADS1220_Handler_t Handler = {};
 ADS1220_Parameters_t Parameters = {};
@@ -258,91 +210,6 @@ int main()
     return 0;
 }
 
-
-
-//创建一个等差数组
-std::vector<double> create_linspace(double start, double end, int N) 
-{
-    double step = (end - start) / (N - 1);
-    std::vector<double> x(N);
-    for (int i = 0; i < N; ++i) {
-        x[i] = start + i*step;
-    }
-    return x;
-}
-
-//找到最近的索引
-int argmin(double y0, const std::vector<double>& x) 
-{
-    auto result = std::min_element(x.begin(), x.end(), [&](double a, double b) {
-        return std::abs(a - y0) < std::abs(b - y0);
-    });
-    return std::distance(x.begin(), result);     // Index
-}
-
-
-// 读取数据
-std::pair<std::vector<double>, std::vector<hsize_t>> readData(const std::string& filename, const std::string& datasetname)
-{
-    H5File file(filename, H5F_ACC_RDONLY);
-    DataSet dataset = file.openDataSet(datasetname);
-
-    DataSpace dataspace = dataset.getSpace();
-    int rank = dataspace.getSimpleExtentNdims();
-    
-    std::vector<hsize_t> dims(rank);
-    dataspace.getSimpleExtentDims(dims.data(), NULL);
-    
-    hsize_t total_size = 1;
-    for(int i = 0; i < rank; i++)
-    {
-        total_size *= dims[i];
-    }
-
-    std::vector<double> data(total_size);
-    dataset.read(data.data(), PredType::NATIVE_DOUBLE);
-
-    return std::make_pair(data, dims);
-}
-
-// 获取数组具体的值
-double getValue(const std::vector<double>& data, const hsize_t* dims, int i, int j, int k)
-{
-    int index = k + dims[2] * (j + dims[1] * i);
-    return data[index];
-}
-
-double DegreesToRadians(double degrees) 
-{
-    return degrees * M_PI / 180.0;
-}
-
-double RadiansToDegrees(double radians) 
-{
-    return radians * 180.0 / M_PI;
-}
-
-
-double readAndParseData(boost::asio::serial_port& serial) 
-{
-    // 创建一个缓冲区来存储返回的数据.
-    std::array<uint8_t, 128> buf;
-    boost::system::error_code ec;
-    size_t len = serial.read_some(boost::asio::buffer(buf), ec);
-    if(ec) {
-        std::cerr << "Error on reading: " << ec.message() << "\n";
-        return 0; // or some error code
-    }
-
-    // 解析接收到的数据
-    uint16_t encoder = (static_cast<uint16_t>(buf[2]) << 8) | buf[1];
-    uint16_t encoderRaw = (static_cast<uint16_t>(buf[4]) << 8) | buf[3]; 
-    uint16_t encoderOffset = (static_cast<uint16_t>(buf[6]) << 8) | buf[5];
-    uint8_t checksum = buf[7];
-
-    return static_cast<double>(encoderOffset);
-}
-
 void T_start()
 {
     gettimeofday(&StartTime, NULL);  //measure the time
@@ -372,11 +239,10 @@ void* Thread_file(void* arg)
          pthread_mutex_lock(&mutex_PT);
          int j = matrix_index;
          while(matrix_index--){
-               fprintf(fp,"%.2f,%.2f,%.2f,%.2f,%.2f\n",  time_matrix[j - matrix_index],\
-                                             theta_b_matrix[j - matrix_index],\
-                                             dtheta_b_matrix[j - matrix_index],\
-                                             dtheta_w_matrix[j - matrix_index],\
-                                             action_matrix[j - matrix_index]);                        
+               fprintf(fp,"%.2f,%.2f,%.2f,%.2f\n",  time_matrix[j - matrix_index],\
+                                                    theta_b_matrix[j - matrix_index],\
+                                                    dtheta_b_matrix[j - matrix_index],\
+                                                    dtheta_w_matrix[j - matrix_index]);                    
          }
          cout << "Data has been saved Over!!!" << endl;
          fclose(fp); 
@@ -446,70 +312,11 @@ void* Thread_action(void* arg)
     while(1){
         if(file_state == 0)pthread_exit(NULL); //exit the thread
 
-        if(abs(theta_b) > 5){
+        if(abs(theta_b) > theta_limit){
             PID_flag = 0;
         }
-        //     state1 = argmin(theta_b,RL_theta_b);
-        //     state2 = argmin(dtheta_b,RL_dtheta_b);
-        //     state3 = argmin(dtheta_w,RL_dtheta_w);
 
-        //     if(state1 != state1_pre && state2 != state2_pre){
-        //         action = getValue(table_data, dims.data(), state1, state2, state3);
-        //         if (action == -2){
-        //             // cout<< "invalidate state"<<endl;
-        //             action = 0;
-        //         }
-        //         if (action!=action_pre){
-        //             if(action == 0 && key_value == 0){
-        //                 pwmWrite(PWM_Pin,240);
-        //                 action_pre = action;
-        //             }
-        //             else if(action == 1 && key_value == 0){
-        //                 digitalWrite(DIR_Pin,HIGH);
-        //                 pwmWrite(PWM_Pin,1984); // 90%  pwm*0.8+240  1984   0.07Nm
-        //                 action_pre = action;
-        //             }
-        //             else if(action == -1 && key_value == 0){
-        //                 digitalWrite(DIR_Pin,LOW);
-        //                 pwmWrite(PWM_Pin,1984); // 90% pwm*0.8+240  1984    0.07Nm
-        //                 action_pre = action;
-        //             }
-        //         }     
-        //     }
-        // }
-        else if(abs(theta_b) < 5 && abs(theta_b) > 2){
-            PID_flag = 0;
-        }
-        //     state1_small_range = argmin(theta_b,RL_theta_b_small_range);
-        //     state2_small_range = argmin(dtheta_b,RL_dtheta_b_small_range);
-        //     state3_small_range = argmin(dtheta_w,RL_dtheta_w_small_range);
-
-        //     if(state1_small_range != state1_pre_small_range && state2_small_range != state2_pre_small_range){
-        //         action = getValue(table_data_small_range, dims_small_range.data(), state1_small_range, state2_small_range, state3_small_range);
-        //         if (action == -2){
-        //             // cout<< "invalidate state"<<endl;
-        //             action = 0;
-        //         }
-        //         if (action!=action_pre){
-        //             if(action == 0 && key_value == 0){
-        //                 pwmWrite(PWM_Pin,240);
-        //                 action_pre = action;
-        //             }
-        //             else if(action == 1 && key_value == 0){
-        //                 digitalWrite(DIR_Pin,HIGH);
-        //                 pwmWrite(PWM_Pin,738); // 26%  pwm*0.8+240  738   0.02Nm
-        //                 action_pre = action;
-        //             }
-        //             else if(action == -1 && key_value == 0){
-        //                 digitalWrite(DIR_Pin,LOW);
-        //                 pwmWrite(PWM_Pin,738); // 26% pwm*0.8+240  738   0.02Nm
-        //                 action_pre = action;
-        //             }
-        //         }     
-        //     }
-        // }
-
-        if(abs(theta_b) < 5 && key_value == 0){
+        if(abs(theta_b) < theta_limit && key_value == 0){
             PID_flag = 1;
             PID_output = theta_b_KP * theta_b + theta_b_KD * dtheta_b + theta_w_KD * dtheta_w;
             if(PID_output > 0){
@@ -526,12 +333,8 @@ void* Thread_action(void* arg)
         }
         if(PID_flag == 0) pwmWrite(PWM_Pin,240);
 
-        // else if(abs(theta_b) < 1){
-        //     pwmWrite(PWM_Pin,240);
-        //     action_pre = 0;
-        // }
 
-        printf("\rtheta_b: %.2f | dtheta_b: %.2f | dtheta_w:%.2f | action index:%.2f   ", theta_b, dtheta_b,dtheta_w,action);   
+        printf("\rtheta_b: %.2f | dtheta_b: %.2f | dtheta_w:%.2f   ", theta_b, dtheta_b,dtheta_w);   
         fflush(stdout);         
 
         pthread_mutex_lock(&mutex_PT);
@@ -539,7 +342,6 @@ void* Thread_action(void* arg)
         theta_b_matrix[matrix_index] = theta_b;
         dtheta_b_matrix[matrix_index] = dtheta_b;
         dtheta_w_matrix[matrix_index] = dtheta_w;
-        action_matrix[matrix_index] = action;
         ++matrix_index;
         if(matrix_index > matrix_number){
             cout << "\nMatrix number error!" << endl;

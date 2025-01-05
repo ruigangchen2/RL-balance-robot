@@ -14,11 +14,6 @@ all: $(PROG).o
 		src/ADS1220.c \
 		imu/MotionSensor/libMotionSensor.a \
 		imu/libs/libI2Cdev.a \
-		-lboost_system \
-		-I /usr/include/hdf5/serial \
-		-L /usr/lib/aarch64-linux-gnu/hdf5/serial \
-		-lhdf5 \
-		-lhdf5_cpp \
 		-lpthread \
 		-lwiringPi \
 		-lcrypt \
